@@ -1,0 +1,71 @@
+# Multimodal EEG + fNIRS Validation Pipeline Configuration
+# This file contains all configurable parameters for the validation pipeline.
+# Requirements: 10.1, 10.4
+
+# Filter Configuration
+# EEG: 1-40 Hz bandpass, fNIRS: 0.01-0.5 Hz for hemodynamic signals
+filters:
+  eeg_bandpass_low_hz: 1.0
+  eeg_bandpass_high_hz: 40.0
+  fnirs_bandpass_low_hz: 0.01
+  fnirs_bandpass_high_hz: 0.5
+  cardiac_band_low_hz: 0.5
+  cardiac_band_high_hz: 2.5
+
+# Quality Assessment Thresholds
+# Based on PHOEBE framework (Pollonini et al., 2016)
+quality:
+  sci_threshold: 0.75          # Scalp Coupling Index minimum (0-1)
+  cv_threshold_percent: 15.0   # Coefficient of Variation maximum (%)
+  saturation_percent: 5.0      # Maximum saturation percentage
+  psp_threshold: 0.1           # Peak Spectral Power minimum
+  short_channel_distance_mm: 15.0  # Short channel classification threshold
+
+# Epoch Configuration
+# EEG: -5 to +20s, fNIRS: -5 to +30s (longer for HRF return)
+epochs:
+  eeg_tmin_sec: -5.0
+  eeg_tmax_sec: 20.0
+  fnirs_tmin_sec: -5.0
+  fnirs_tmax_sec: 30.0
+  baseline_tmin_sec: -5.0
+  baseline_tmax_sec: -1.0      # Exclude -1 to 0s to avoid anticipatory ERD
+
+# Analysis Configuration
+# Alpha/Mu: 8-13 Hz, Beta: 13-30 Hz
+analysis:
+  alpha_band_low_hz: 8.0
+  alpha_band_high_hz: 13.0
+  beta_band_low_hz: 13.0
+  beta_band_high_hz: 30.0
+  task_window_start_sec: 1.0
+  task_window_end_sec: 14.0
+  baseline_window_start_sec: -5.0
+  baseline_window_end_sec: -1.0
+  hrf_onset_window_start_sec: 2.0
+  hrf_onset_window_end_sec: 3.0
+  hrf_peak_window_start_sec: 4.0
+  hrf_peak_window_end_sec: 8.0
+  dpf: 6.0                     # Differential Pathlength Factor
+
+# ICA Configuration for EEG Artifact Removal
+ica:
+  n_components: 0.99           # Variance ratio (99%)
+  random_state: 42             # For reproducibility
+  max_iter: 1000
+  eog_threshold: 0.8           # Frontal correlation threshold
+  emg_threshold: 2.0           # High-freq power ratio threshold
+  min_components: 15           # Minimum components for 32-channel data
+
+# Motion Correction Configuration for fNIRS
+motion_correction:
+  method: tddr                 # Options: tddr, wavelet, none
+  wavelet_name: db4
+  wavelet_threshold: 0.1
+
+# Data Paths (BIDS-compliant)
+data_root: data/raw
+output_root: data/derivatives/validation-pipeline
+
+# Global Random Seed for Reproducibility
+random_seed: 42

@@ -1,0 +1,809 @@
+"""
+EEG Preprocessing and Artifact Removal Module.
+
+This module implements EEG preprocessing following neuroscience best practices:
+- Bandpass filtering (1-40 Hz) to remove drift and high-frequency noise
+- ICA decomposition for artifact separation
+- EOG/EMG component identification and removal
+- Bad channel interpolation
+- Common Average Reference (CAR)
+
+All processing maintains data integrity and follows MNE-Python conventions.
+
+Requirements: 5.1-5.7, 10.2, 10.3
+References:
+    - Makeig et al. (1996). ICA of EEG data. NIPS.
+    - Delorme & Makeig (2004). EEGLAB toolbox. J Neurosci Methods 134(1).
+    - MNE-Python ICA tutorial: https://mne.tools/stable/auto_tutorials/preprocessing/40_artifact_correction_ica.html
+"""
+
+import logging
+from typing import Tuple
+
+import mne
+import numpy as np
+from scipy import signal
+
+from affective_fnirs.config import PipelineConfig
+
+logger = logging.getLogger(__name__)
+
+
+def preprocess_eeg(
+    raw: mne.io.Raw,
+    l_freq: float = 1.0,
+    h_freq: float = 40.0,
+    show_progress: bool = True,
+) -> mne.io.Raw:
+    """
+    Apply bandpass filter to EEG data.
+
+    Removes DC drift (<1 Hz) and high-frequency noise (>40 Hz) while preserving
+    motor-related rhythms (mu: 8-13 Hz, beta: 13-30 Hz).
+
+    Filter Design:
+    - Type: FIR (Finite Impulse Response) for zero-phase distortion
+    - Method: Hamming window design
+    - Transition bandwidth: Automatic (MNE default)
+
+    Args:
+        raw: MNE Raw object with EEG data
+        l_freq: High-pass cutoff (default 1.0 Hz)
+            - Removes slow drifts and DC offset
+            - Preserves delta band (1-4 Hz) if needed
+        h_freq: Low-pass cutoff (default 40.0 Hz)
+            - Removes line noise (50/60 Hz) and high-frequency artifacts
+            - Preserves gamma band (30-40 Hz) if needed
+        show_progress: Display progress bar for long recordings (Req. 11.6)
+
+    Returns:
+        Filtered MNE Raw object
+
+    Notes:
+        - FIR filter ensures zero phase shift (no temporal distortion)
+        - Filter separately from fNIRS data (different Raw objects)
+        - Filtering can be slow for long recordings (show progress)
+        - Verify preserved bands: mu (8-12 Hz), beta (13-30 Hz) for ERD/ERS
+
+    Example:
+        >>> raw_eeg_filtered = preprocess_eeg(raw_eeg, l_freq=1.0, h_freq=40.0)
+        >>> # Progress: [████████████████████] 100% | Filtering EEG (32 channels)
+
+    References:
+        - MNE filter: https://mne.tools/stable/generated/mne.io.Raw.html#mne.io.Raw.filter
+        - Widmann et al. (2015). Digital filter design for EEG. J Neurosci Methods 250.
+
+    Requirements: 5.1
+    """
+    logger.info(
+        f"Applying bandpass filter: {l_freq}-{h_freq} Hz "
+        f"({len(raw.ch_names)} channels)"
+    )
+
+    # Create a copy to avoid modifying original data
+    raw_filtered = raw.copy()
+
+    # Apply FIR bandpass filter with Hamming window (MNE default)
+    # picks='eeg' ensures only EEG channels are filtered
+    raw_filtered.filter(
+        l_freq=l_freq,
+        h_freq=h_freq,
+        picks="eeg",
+        method="fir",
+        fir_design="firwin",
+        verbose=show_progress,
+    )
+
+    logger.info(f"Bandpass filtering complete: {l_freq}-{h_freq} Hz")
+
+    return raw_filtered
+
+
+
+
+def detect_bad_eeg_channels(
+    raw: mne.io.Raw,
+    amplitude_threshold_uv: float = 500.0,
+    rms_std_threshold: float = 5.0,
+) -> list[str]:
+    """
+    Detect bad EEG channels based on amplitude and noise criteria.
+
+    Bad channels can contaminate Common Average Reference and should be
+    interpolated before re-referencing (Req. 5.7).
+
+    Detection criteria:
+    1. **Saturation**: Peak amplitude > threshold (e.g., ±500 μV)
+    2. **Excessive noise**: RMS amplitude > mean + N*std across channels
+    3. **Flat signal**: RMS amplitude near zero (disconnected electrode)
+
+    Args:
+        raw: MNE Raw object with EEG data
+        amplitude_threshold_uv: Maximum peak amplitude (default 500 μV)
+        rms_std_threshold: Number of std deviations for RMS outlier detection
+
+    Returns:
+        List of bad channel names
+
+    Notes:
+        - BrainProducts 32-channel systems typically have good quality
+        - May not find bad channels in pilot data, but mechanism should exist
+        - Bad channels marked in raw.info['bads'] for exclusion
+
+    Example:
+        >>> bad_channels = detect_bad_eeg_channels(raw_eeg)
+        >>> if bad_channels:
+        >>>     print(f"Bad channels detected: {bad_channels}")
+        >>>     raw_eeg.info['bads'] = bad_channels
+
+    Requirements: 5.7
+    """
+    logger.info("Detecting bad EEG channels...")
+
+    # Get EEG channel names
+    eeg_picks = mne.pick_types(raw.info, eeg=True, exclude=[])
+    eeg_channel_names = [raw.ch_names[i] for i in eeg_picks]
+
+    if not eeg_channel_names:
+        logger.warning("No EEG channels found for bad channel detection")
+        return []
+
+    # Get EEG data in microvolts
+    data_eeg = raw.get_data(picks=eeg_picks) * 1e6  # Convert V to μV
+
+    bad_channels = []
+
+    # Criterion 1: Saturation (peak amplitude > threshold)
+    peak_amplitudes = np.max(np.abs(data_eeg), axis=1)
+    saturated_mask = peak_amplitudes > amplitude_threshold_uv
+
+    for idx, is_saturated in enumerate(saturated_mask):
+        if is_saturated:
+            ch_name = eeg_channel_names[idx]
+            bad_channels.append(ch_name)
+            logger.warning(
+                f"Channel {ch_name} saturated: "
+                f"peak amplitude {peak_amplitudes[idx]:.1f} μV > "
+                f"{amplitude_threshold_uv} μV"
+            )
+
+    # Criterion 2: Excessive noise (RMS outlier)
+    rms_values = np.sqrt(np.mean(data_eeg**2, axis=1))
+    rms_mean = np.mean(rms_values)
+    rms_std = np.std(rms_values)
+    rms_threshold = rms_mean + rms_std_threshold * rms_std
+
+    noisy_mask = rms_values > rms_threshold
+
+    for idx, is_noisy in enumerate(noisy_mask):
+        ch_name = eeg_channel_names[idx]
+        if is_noisy and ch_name not in bad_channels:
+            bad_channels.append(ch_name)
+            logger.warning(
+                f"Channel {ch_name} excessively noisy: "
+                f"RMS {rms_values[idx]:.1f} μV > "
+                f"{rms_threshold:.1f} μV (mean + {rms_std_threshold}*std)"
+            )
+
+    # Criterion 3: Flat signal (RMS near zero)
+    # Use 1% of mean RMS as threshold for flat detection
+    flat_threshold = 0.01 * rms_mean
+    flat_mask = rms_values < flat_threshold
+
+    for idx, is_flat in enumerate(flat_mask):
+        ch_name = eeg_channel_names[idx]
+        if is_flat and ch_name not in bad_channels:
+            bad_channels.append(ch_name)
+            logger.warning(
+                f"Channel {ch_name} flat signal: "
+                f"RMS {rms_values[idx]:.1f} μV < "
+                f"{flat_threshold:.1f} μV (disconnected electrode)"
+            )
+
+    if bad_channels:
+        logger.info(f"Detected {len(bad_channels)} bad channels: {bad_channels}")
+    else:
+        logger.info("No bad channels detected")
+
+    return bad_channels
+
+
+
+
+def apply_ica_artifact_removal(
+    raw: mne.io.Raw,
+    n_components: int | float = 0.99,
+    random_state: int = 42,
+    method: str = "fastica",
+) -> Tuple[mne.io.Raw, mne.preprocessing.ICA]:
+    """
+    Apply ICA to remove EOG and EMG artifacts.
+
+    ICA decomposes EEG into independent components (ICs), separating neural
+    sources from artifacts. Artifact ICs are identified and removed.
+
+    Algorithm:
+    1. Fit ICA on filtered continuous data (1-40 Hz, before epoching)
+    2. Identify EOG components (correlation with frontal channels)
+    3. Identify EMG components (high-frequency power ratio)
+    4. Exclude artifact components
+    5. Reconstruct clean signal
+
+    Component Selection:
+    - If n_components is int: Use exactly N components
+    - If n_components is float (0-1): Use components explaining N% variance
+    - Recommendation: Use 0.99 (99% variance) or n_channels for full decomposition
+    - Minimum: 15 components (Req. 5.3), but more is better for 32-channel data
+
+    Args:
+        raw: MNE Raw object (filtered, 1-40 Hz)
+        n_components: Number of ICA components or variance fraction
+            - int: Exact number (e.g., 30 for 32 channels)
+            - float: Variance fraction (e.g., 0.99 for 99%)
+            - Default: 0.99 (recommended for artifact separation)
+        random_state: Random seed for reproducibility (Req. 10.2, 10.3)
+        method: ICA algorithm ('fastica', 'infomax', 'picard')
+            - 'fastica': Fast, robust (default)
+            - 'picard': Faster convergence, good for large datasets
+
+    Returns:
+        cleaned_raw: Raw object with artifacts removed
+        ica: Fitted ICA object for inspection and saving
+
+    Notes:
+        - More components (≈n_channels) better separate diverse artifacts
+        - 15 components is minimum, not optimal for 32 channels
+        - Random seed logged in metadata for reproducibility
+        - ICA object should be saved to derivatives/ica/ for reuse
+
+    Example:
+        >>> raw_clean, ica = apply_ica_artifact_removal(raw_filtered, n_components=0.99)
+        >>> # Log: "ICA fitted with 30 components (99.2% variance), random_state=42"
+        >>> # Save ICA: ica.save('derivatives/ica/sub-001_ses-001_task-fingertapping_ica.fif')
+
+    References:
+        - Makeig et al. (1996). ICA of EEG data. NIPS.
+        - MNE ICA: https://mne.tools/stable/generated/mne.preprocessing.ICA.html
+        - Delorme & Makeig (2004). EEGLAB toolbox. J Neurosci Methods 134(1).
+
+    Requirements: 5.2, 5.3, 10.2, 10.3
+    """
+    logger.info(
+        f"Fitting ICA: n_components={n_components}, "
+        f"random_state={random_state}, method={method}"
+    )
+
+    # Create ICA object
+    ica = mne.preprocessing.ICA(
+        n_components=n_components,
+        random_state=random_state,
+        method=method,
+        max_iter=1000,
+    )
+
+    # Fit ICA on filtered continuous data (before epoching)
+    # Use only EEG channels
+    ica.fit(raw, picks="eeg")
+
+    # Get actual number of components fitted
+    n_components_fitted = ica.n_components_
+
+    # Ensure minimum components requirement
+    if n_components_fitted < 15:
+        logger.warning(
+            f"ICA fitted with only {n_components_fitted} components, "
+            f"which is below the recommended minimum of 15. "
+            f"Consider using more components for better artifact separation."
+        )
+
+    # Calculate variance explained
+    if hasattr(ica, "pca_explained_variance_"):
+        variance_explained = ica.pca_explained_variance_.sum()
+        logger.info(
+            f"ICA fitted: {n_components_fitted} components, "
+            f"{variance_explained*100:.1f}% variance explained, "
+            f"random_state={random_state}"
+        )
+    else:
+        logger.info(
+            f"ICA fitted: {n_components_fitted} components, "
+            f"random_state={random_state}"
+        )
+
+    # Note: Artifact identification and exclusion will be done separately
+    # by identify_eog_components() and identify_emg_components()
+    # This function only fits the ICA, doesn't apply it yet
+
+    return raw, ica
+
+
+
+
+def identify_eog_components(
+    ica: mne.preprocessing.ICA,
+    raw: mne.io.Raw,
+    threshold: float = 0.8,
+    frontal_channels: list[str] | None = None,
+) -> list[int]:
+    """
+    Identify ICA components correlated with eye movements.
+
+    Without dedicated EOG channels, use frontal electrodes (Fp1, Fp2) as
+    proxy for blink artifacts. Blinks produce large frontal deflections.
+
+    Algorithm:
+    1. For each ICA component:
+       - Compute correlation with Fp1 and Fp2 signals
+       - If |correlation| > threshold with either channel, mark as EOG
+    2. Alternative: Use MNE's ica.find_bads_eog(raw, ch_name='Fp1')
+    3. Visual verification: EOG components show frontal topography
+
+    Args:
+        ica: Fitted ICA object
+        raw: MNE Raw object with EEG data
+        threshold: Correlation threshold for EOG detection (default 0.8)
+        frontal_channels: Channels to use as EOG proxy (default ['Fp1', 'Fp2'])
+
+    Returns:
+        List of component indices identified as EOG
+
+    Notes:
+        - Frontal channels (Fp1, Fp2) capture blink artifacts
+        - EOG components typically show:
+          * High correlation (>0.8) with frontal channels
+          * Frontal-positive topography (red at Fp1/Fp2)
+          * Spike-like time series during blinks
+        - Threshold configurable via ICAConfig (Req. 5.4)
+        - Provide topographies for manual verification (Req. 5.6)
+
+    Visual Verification:
+        >>> ica.plot_components(picks=eog_components)  # Show topographies
+        >>> ica.plot_sources(raw, picks=eog_components)  # Show time series
+
+    Example:
+        >>> eog_inds = identify_eog_components(ica, raw, threshold=0.8)
+        >>> # Found: [0, 2] (components 0 and 2 correlated with Fp1/Fp2)
+        >>> # Visual check: Component 0 shows frontal topography ✓
+
+    References:
+        - Jung et al. (2000). Removing EEG artifacts by blind source separation. Psychophysiology 37(2).
+        - MNE find_bads_eog: https://mne.tools/stable/generated/mne.preprocessing.ICA.html#mne.preprocessing.ICA.find_bads_eog
+
+    Requirements: 5.4, 5.6
+    """
+    if frontal_channels is None:
+        frontal_channels = ["Fp1", "Fp2"]
+
+    logger.info(
+        f"Identifying EOG components using frontal channels: {frontal_channels}, "
+        f"threshold={threshold}"
+    )
+
+    eog_components = []
+
+    # Check if frontal channels exist in the data
+    available_frontal = [ch for ch in frontal_channels if ch in raw.ch_names]
+
+    if not available_frontal:
+        logger.warning(
+            f"No frontal channels found in data. "
+            f"Requested: {frontal_channels}, "
+            f"Available: {raw.ch_names}. "
+            f"Skipping EOG component identification."
+        )
+        return eog_components
+
+    # Use MNE's built-in EOG detection for each frontal channel
+    for ch_name in available_frontal:
+        try:
+            # find_bads_eog returns indices and scores
+            eog_inds, scores = ica.find_bads_eog(raw, ch_name=ch_name, threshold=threshold)
+
+            if eog_inds:
+                logger.info(
+                    f"EOG components found using {ch_name}: {eog_inds} "
+                    f"(max correlation: {np.max(np.abs(scores)):.3f})"
+                )
+                eog_components.extend(eog_inds)
+        except Exception as e:
+            logger.warning(f"Error detecting EOG with channel {ch_name}: {e}")
+            continue
+
+    # Remove duplicates and sort
+    eog_components = sorted(list(set(eog_components)))
+
+    if eog_components:
+        logger.info(f"Total EOG components identified: {eog_components}")
+    else:
+        logger.info("No EOG components identified")
+
+    return eog_components
+
+
+
+
+def identify_emg_components(
+    ica: mne.preprocessing.ICA,
+    raw: mne.io.Raw,
+    freq_threshold: float = 20.0,
+    power_ratio_threshold: float = 2.0,
+) -> list[int]:
+    """
+    Identify ICA components with high-frequency muscle activity.
+
+    Muscle artifacts (EMG) produce high-frequency noise (>20 Hz) that
+    contaminates EEG. ICA can isolate these into separate components.
+
+    Algorithm:
+    1. For each ICA component:
+       - Compute Power Spectral Density (Welch's method)
+       - Calculate power in high-freq band (20-40 Hz)
+       - Calculate power in low-freq band (1-20 Hz)
+       - Compute ratio: high_power / low_power
+    2. If ratio > threshold (e.g., 2.0), mark as EMG
+    3. Visual verification: EMG components show:
+       - Spiky, irregular time series
+       - Spatially localized or random topography
+       - High power above 20 Hz
+
+    Args:
+        ica: Fitted ICA object
+        raw: MNE Raw object
+        freq_threshold: Frequency above which to measure power (default 20 Hz)
+        power_ratio_threshold: Ratio of high-freq to low-freq power (default 2.0)
+
+    Returns:
+        List of component indices identified as EMG
+
+    Notes:
+        - EMG artifacts common in motor tasks (jaw clenching, neck tension)
+        - Threshold 2.0 is initial estimate, adjust based on data
+        - No direct MNE function; implement using PSD analysis
+        - Configurable via ICAConfig (Req. 5.5)
+        - Combine automatic detection with visual inspection
+
+    Visual Verification:
+        >>> ica.plot_components(picks=emg_components)  # Check topography
+        >>> ica.plot_sources(raw, picks=emg_components)  # Check time series
+        >>> ica.plot_properties(raw, picks=emg_components)  # Check PSD
+
+    Example:
+        >>> emg_inds = identify_emg_components(ica, raw, power_ratio_threshold=2.0)
+        >>> # Found: [5, 12] (components with high-freq dominance)
+        >>> # Visual check: Component 5 shows spiky time series ✓
+
+    References:
+        - Mognon et al. (2011). ADJUST: Automatic EEG artifact detector. Clin Neurophysiol 122(1).
+        - Chaumon et al. (2015). A practical guide to ICA. Brain Topography 28(3).
+
+    Requirements: 5.5, 5.6
+    """
+    logger.info(
+        f"Identifying EMG components: freq_threshold={freq_threshold} Hz, "
+        f"power_ratio_threshold={power_ratio_threshold}"
+    )
+
+    emg_components = []
+
+    # Get ICA sources
+    sources = ica.get_sources(raw)
+    sfreq = raw.info["sfreq"]
+
+    # Compute PSD for each component using Welch's method
+    for comp_idx in range(ica.n_components_):
+        # Get component time series
+        comp_data = sources.get_data(picks=[comp_idx])[0]
+
+        # Compute PSD using Welch's method
+        # Use 2-second windows with 50% overlap
+        nperseg = int(2 * sfreq)
+        freqs, psd = signal.welch(
+            comp_data, fs=sfreq, nperseg=nperseg, noverlap=nperseg // 2
+        )
+
+        # Calculate power in low-frequency band (1 Hz to freq_threshold)
+        low_freq_mask = (freqs >= 1.0) & (freqs < freq_threshold)
+        low_freq_power = np.trapz(psd[low_freq_mask], freqs[low_freq_mask])
+
+        # Calculate power in high-frequency band (freq_threshold to 40 Hz)
+        # Limit to 40 Hz to match EEG filtering
+        high_freq_mask = (freqs >= freq_threshold) & (freqs <= 40.0)
+        high_freq_power = np.trapz(psd[high_freq_mask], freqs[high_freq_mask])
+
+        # Avoid division by zero
+        if low_freq_power > 0:
+            power_ratio = high_freq_power / low_freq_power
+
+            if power_ratio > power_ratio_threshold:
+                emg_components.append(comp_idx)
+                logger.info(
+                    f"Component {comp_idx} identified as EMG: "
+                    f"power ratio = {power_ratio:.2f} "
+                    f"(high-freq: {high_freq_power:.2e}, low-freq: {low_freq_power:.2e})"
+                )
+
+    if emg_components:
+        logger.info(f"Total EMG components identified: {emg_components}")
+    else:
+        logger.info("No EMG components identified")
+
+    return emg_components
+
+
+
+
+def interpolate_bad_channels(raw: mne.io.Raw) -> mne.io.Raw:
+    """
+    Interpolate bad EEG channels using spherical spline interpolation.
+
+    Bad channels must be interpolated BEFORE Common Average Reference to
+    prevent contamination of the reference signal (Req. 5.7).
+
+    Algorithm:
+    1. Identify bad channels (from raw.info['bads'])
+    2. For each bad channel:
+       - Use spherical spline interpolation based on neighboring channels
+       - Weighted by distance on scalp surface
+    3. Replace bad channel data with interpolated values
+    4. Remove channels from raw.info['bads'] (now repaired)
+
+    Implementation:
+        Uses raw.interpolate_bads(reset_bads=True)
+        Requires channel positions (from montage)
+
+    Args:
+        raw: MNE Raw object with bad channels marked in info['bads']
+
+    Returns:
+        MNE Raw object with interpolated channels
+
+    Notes:
+        - Requires 10-20 montage with 3D positions
+        - Interpolation quality depends on number of good neighbors
+        - If >20% channels are bad, interpolation may be unreliable
+        - Log interpolated channels for transparency
+
+    Example:
+        >>> raw.info['bads'] = ['T7', 'P8']  # Mark bad channels
+        >>> raw_interp = interpolate_bad_channels(raw)
+        >>> # Log: "Interpolated 2 bad channels: T7, P8"
+        >>> # raw_interp.info['bads'] is now empty
+
+    References:
+        - Perrin et al. (1989). Spherical splines for scalp potential mapping. EEG Clin Neurophysiol 72(2).
+        - MNE interpolate_bads: https://mne.tools/stable/generated/mne.io.Raw.html#mne.io.Raw.interpolate_bads
+
+    Requirements: 5.7
+    """
+    bad_channels = raw.info["bads"].copy()
+
+    if not bad_channels:
+        logger.info("No bad channels to interpolate")
+        return raw
+
+    # Count total EEG channels
+    eeg_picks = mne.pick_types(raw.info, eeg=True, exclude=[])
+    n_eeg_channels = len(eeg_picks)
+    n_bad_channels = len(bad_channels)
+
+    # Warn if >20% channels are bad
+    bad_percentage = (n_bad_channels / n_eeg_channels) * 100
+    if bad_percentage > 20:
+        logger.warning(
+            f"High percentage of bad channels: {n_bad_channels}/{n_eeg_channels} "
+            f"({bad_percentage:.1f}%). Interpolation may be unreliable."
+        )
+
+    logger.info(f"Interpolating {n_bad_channels} bad channels: {bad_channels}")
+
+    # Create a copy to avoid modifying original
+    raw_interp = raw.copy()
+
+    # Interpolate bad channels using spherical spline interpolation
+    # reset_bads=True removes channels from info['bads'] after interpolation
+    raw_interp.interpolate_bads(reset_bads=True)
+
+    logger.info(
+        f"Successfully interpolated {n_bad_channels} channels. "
+        f"raw.info['bads'] is now empty: {raw_interp.info['bads']}"
+    )
+
+    return raw_interp
+
+
+
+
+def rereference_eeg(
+    raw: mne.io.Raw, ref_channels: str = "average"
+) -> mne.io.Raw:
+    """
+    Apply Common Average Reference (CAR) to EEG.
+
+    CAR subtracts the mean of all electrodes from each electrode, removing
+    shared noise and improving SNR for localized sources (e.g., motor cortex).
+
+    Algorithm:
+    1. Compute reference signal: ref = mean(all_good_channels)
+    2. For each channel: channel_new = channel_old - ref
+    3. Result: All channels referenced to their collective average
+
+    Critical: Bad channels must be excluded/interpolated before CAR to
+    prevent noise propagation (Req. 5.7).
+
+    Args:
+        raw: MNE Raw object with EEG data
+            - Bad channels should be interpolated beforehand
+            - Montage should be applied (for spatial context)
+        ref_channels: Reference type
+            - 'average': Common Average Reference (recommended)
+            - List of channel names: Reference to specific channels
+            - None: Keep original reference
+
+    Returns:
+        Re-referenced MNE Raw object
+
+    Notes:
+        - CAR improves SNR for motor rhythms (mu, beta)
+        - If original reference was Cz or mastoids, CAR transforms to average
+        - MNE automatically excludes channels in info['bads'] from average
+        - After CAR, no single channel is "reference" (all are relative to average)
+        - Document reference transformation in processing log
+
+    Example:
+        >>> # After interpolation
+        >>> raw_car = rereference_eeg(raw_interp, ref_channels='average')
+        >>> # Log: "Applied Common Average Reference (32 channels)"
+        >>> # Original reference (e.g., Cz) is now transformed
+
+    References:
+        - Nunez & Srinivasan (2006). Electric Fields of the Brain. Oxford University Press.
+        - MNE set_eeg_reference: https://mne.tools/stable/generated/mne.io.Raw.html#mne.io.Raw.set_eeg_reference
+        - Yao (2001). A method to standardize EEG reference. Physiol Meas 22(4).
+
+    Requirements: 5.7
+    """
+    # Check if there are bad channels (should be empty after interpolation)
+    if raw.info["bads"]:
+        logger.warning(
+            f"Bad channels present before re-referencing: {raw.info['bads']}. "
+            f"These will be excluded from the average reference. "
+            f"Consider interpolating bad channels first."
+        )
+
+    # Get number of EEG channels
+    eeg_picks = mne.pick_types(raw.info, eeg=True, exclude="bads")
+    n_eeg_channels = len(eeg_picks)
+
+    logger.info(
+        f"Applying Common Average Reference to {n_eeg_channels} EEG channels "
+        f"(excluding {len(raw.info['bads'])} bad channels)"
+    )
+
+    # Create a copy to avoid modifying original
+    raw_reref = raw.copy()
+
+    # Apply Common Average Reference
+    # projection=False means apply immediately (not as a projector)
+    raw_reref.set_eeg_reference(ref_channels=ref_channels, projection=False)
+
+    logger.info(f"Common Average Reference applied successfully")
+
+    return raw_reref
+
+
+
+
+def preprocess_eeg_pipeline(
+    raw_eeg: mne.io.Raw,
+    config: PipelineConfig,
+    save_ica_path: str | None = None,
+) -> Tuple[mne.io.Raw, mne.preprocessing.ICA]:
+    """
+    Complete EEG preprocessing pipeline following best practices.
+
+    Pipeline stages:
+    1. Bandpass filter (1-40 Hz)
+    2. Detect bad channels
+    3. Fit ICA (artifact decomposition)
+    4. Identify EOG components (frontal correlation)
+    5. Identify EMG components (high-freq power)
+    6. Apply ICA (remove artifacts)
+    7. Interpolate bad channels
+    8. Common Average Reference
+
+    Args:
+        raw_eeg: Raw EEG data with 10-20 montage applied
+        config: Pipeline configuration with ICA and filter parameters
+        save_ica_path: Optional path to save ICA object for reproducibility
+
+    Returns:
+        cleaned_raw: Preprocessed EEG ready for analysis
+        ica: Fitted ICA object (save for reproducibility)
+
+    Example:
+        >>> from affective_fnirs.config import PipelineConfig
+        >>> config = PipelineConfig.default()
+        >>> raw_clean, ica = preprocess_eeg_pipeline(raw_eeg, config)
+        >>> # Save ICA for reproducibility
+        >>> ica.save('derivatives/ica/sub-001_ses-001_task-fingertapping_ica.fif')
+
+    Requirements: 5.1-5.7
+    """
+    logger.info("=" * 80)
+    logger.info("Starting EEG Preprocessing Pipeline")
+    logger.info("=" * 80)
+
+    # Stage 1: Bandpass filter
+    logger.info("Stage 1/8: Bandpass filtering")
+    raw_filtered = preprocess_eeg(
+        raw_eeg,
+        l_freq=config.filters.eeg_bandpass_low_hz,
+        h_freq=config.filters.eeg_bandpass_high_hz,
+        show_progress=True,
+    )
+
+    # Stage 2: Detect bad channels
+    logger.info("Stage 2/8: Detecting bad channels")
+    bad_channels = detect_bad_eeg_channels(raw_filtered)
+    if bad_channels:
+        logger.warning(f"Bad channels detected: {bad_channels}")
+        raw_filtered.info["bads"] = bad_channels
+    else:
+        logger.info("No bad channels detected")
+
+    # Stage 3: Fit ICA
+    logger.info("Stage 3/8: Fitting ICA")
+    _, ica = apply_ica_artifact_removal(
+        raw_filtered,
+        n_components=config.ica.n_components,
+        random_state=config.ica.random_state,
+        method="fastica",
+    )
+
+    # Stage 4: Identify EOG components
+    logger.info("Stage 4/8: Identifying EOG components")
+    eog_components = identify_eog_components(
+        ica, raw_filtered, threshold=config.ica.eog_threshold
+    )
+
+    # Stage 5: Identify EMG components
+    logger.info("Stage 5/8: Identifying EMG components")
+    emg_components = identify_emg_components(
+        ica,
+        raw_filtered,
+        freq_threshold=20.0,
+        power_ratio_threshold=config.ica.emg_threshold,
+    )
+
+    # Stage 6: Apply ICA (exclude artifacts)
+    artifact_components = sorted(list(set(eog_components + emg_components)))
+    logger.info(
+        f"Stage 6/8: Applying ICA (excluding {len(artifact_components)} components: "
+        f"{artifact_components})"
+    )
+    ica.exclude = artifact_components
+    raw_clean = ica.apply(raw_filtered.copy())
+
+    # Stage 7: Interpolate bad channels
+    if raw_clean.info["bads"]:
+        logger.info("Stage 7/8: Interpolating bad channels")
+        raw_clean = interpolate_bad_channels(raw_clean)
+    else:
+        logger.info("Stage 7/8: No bad channels to interpolate")
+
+    # Stage 8: Common Average Reference
+    logger.info("Stage 8/8: Applying Common Average Reference")
+    raw_clean = rereference_eeg(raw_clean, ref_channels="average")
+
+    # Save ICA object if path provided
+    if save_ica_path:
+        logger.info(f"Saving ICA object to: {save_ica_path}")
+        ica.save(save_ica_path, overwrite=True)
+
+    logger.info("=" * 80)
+    logger.info("EEG Preprocessing Pipeline Complete")
+    logger.info("=" * 80)
+
+    return raw_clean, ica
+
+

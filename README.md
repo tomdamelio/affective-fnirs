@@ -40,10 +40,19 @@ micromamba run -n affective-fnirs python scripts/verify_imports.py
 
 ## Uso
 
+### Test Data
+
+El proyecto incluye datos piloto de dos sujetos:
+- **`sub-002`** ✅ - Datos completos (EEG + fNIRS + Markers) - **Usar para desarrollo**
+- **`sub-001`** ⚠️ - Datos incompletos (solo fNIRS + Markers, sin EEG)
+
+Ver [`docs/TEST_DATA.md`](docs/TEST_DATA.md) para detalles completos sobre los datos de prueba.
+
+### Comandos Básicos
+
 Todos los comandos Python deben ejecutarse usando `micromamba run`:
 
 ```powershell
-
 # Ejecutar un script de prueba suelto
 micromamba run -n affective-fnirs python tests/mi_script.py
 

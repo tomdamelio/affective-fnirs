@@ -1,6 +1,42 @@
+# Multimodal EEG + fNIRS Validation Pipeline Environment
+# Pinned versions for reproducibility (Requirements 10.5)
 name: affective-fnirs
 channels:
   - conda-forge
+  - defaults
 dependencies:
+  # Python
   - python=3.11
+
+  # Core Scientific Stack (pinned for reproducibility)
+  - numpy=1.26.4
+  - scipy=1.12.0
+  - pandas=2.2.0
+  - matplotlib=3.8.3
+
+  # Neuroimaging (MNE ecosystem)
+  - mne=1.6.0
+  - mne-nirs=0.6.0
+
+  # XDF file loading (multimodal data)
+  - pyxdf=1.16.5
+
+  # Property-based testing
+  - hypothesis=6.98.0
+
+  # Development tools
+  - pytest=8.0.0
+  - pytest-cov=4.1.0
+  - black=24.2.0
+  - ruff=0.2.1
+
+  # Additional dependencies for MNE-NIRS
+  - h5py=3.10.0
+  - nilearn=0.10.3
+  - scikit-learn=1.4.0
+
+  # Pip-only packages
   - pip
+  - pip:
+      # Install local package in editable mode
+      - -e .
