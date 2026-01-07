@@ -77,4 +77,85 @@ This document specifies the requirements for a validation and analysis pipeline 
 5. WHEN computing time-frequency representations, THE System SHALL use Morlet wavelets across 3 to 30 Hz frequency range
 6. WHEN analyzing motor tasks with right hand movement, THE System SHALL focus analysis on channel C3 (left motor cortex)
 7. THE System SHALL generate TFR plots showing power changes in Alpha (8-13 Hz) and Beta (15-25 Hz) bands
-8. WHEN ERD is detected, THE System SHALL verify power d
+8. WHEN ERD is detected, THE System SHALL verify power decrease begins at task onset (t=0s) and persists during the 15-second task block
+
+### Requirement 5: fNIRS Hemodynamic Response Analysis
+
+**User Story:** As a hemodynamics researcher, I want to extract and visualize hemoglobin concentration changes, so that I can validate neurovascular coupling during motor tasks.
+
+#### Acceptance Criteria
+
+1. WHEN converting fNIRS data, THE System SHALL transform raw intensity to optical density
+2. WHEN applying quality filtering, THE System SHALL exclude channels marked as BAD from SCI and CV assessment
+3. WHEN applying Beer-Lambert Law, THE System SHALL convert optical density to HbO and HbR concentrations
+4. WHEN filtering hemodynamic signals, THE System SHALL apply a bandpass filter between 0.01 Hz and 0.2 Hz
+5. WHEN creating fNIRS epochs, THE System SHALL extract time windows from -5 seconds to +25 seconds around task onset
+6. WHEN analyzing motor cortex activation, THE System SHALL select channels anatomically closest to C3 location
+7. THE System SHALL generate averaged hemodynamic response plots showing HbO increase and HbR decrease
+8. WHEN validating hemodynamic lag, THE System SHALL verify HbO peak occurs between 6 and 8 seconds post-stimulus, not at t=0
+
+### Requirement 6: Multimodal Neurovascular Coupling Analysis
+
+**User Story:** As a systems neuroscientist, I want to quantify temporal relationships between neural and vascular signals, so that I can validate neurovascular coupling mechanisms.
+
+#### Acceptance Criteria
+
+1. WHEN extracting EEG envelope, THE System SHALL filter EEG signal in Alpha band (8-12 Hz) and apply Hilbert transform
+2. WHEN preparing signals for correlation, THE System SHALL resample EEG envelope to match fNIRS sampling rate
+3. WHEN computing cross-correlation, THE System SHALL correlate HbO time series with inverted Alpha envelope at C3
+4. THE System SHALL identify the lag value producing maximum correlation between EEG and fNIRS signals
+5. WHEN neurovascular coupling is present, THE System SHALL verify negative lag indicating EEG changes precede HbO changes
+6. THE System SHALL generate overlay plots showing temporal alignment of Alpha power and HbO concentration
+
+### Requirement 7: Validation Report Generation
+
+**User Story:** As a principal investigator, I want a comprehensive quality report for pilot data, so that I can make informed decisions about experimental protocols.
+
+#### Acceptance Criteria
+
+1. THE System SHALL generate a report containing a table of fNIRS channel quality with SCI values
+2. THE System SHALL include EEG spectrograms for channel C3 showing clear ERD patterns
+3. THE System SHALL include hemodynamic response curves with HbO and HbR traces and standard deviation shading
+4. THE System SHALL include neurovascular coupling plots with superimposed EEG and fNIRS time series
+5. WHEN generating reports, THE System SHALL output results in HTML or Jupyter Notebook format
+6. THE System SHALL include a conclusions section summarizing whether validation criteria were met
+7. WHERE initial dip is detected in HbO signal, THE System SHALL flag this as high-quality indicator in the report
+
+### Requirement 8: BIDS Compliance and Data Integrity
+
+**User Story:** As a data manager, I want all processing to respect BIDS standards and data immutability, so that raw data remains protected and outputs are standardized.
+
+#### Acceptance Criteria
+
+1. THE System SHALL never open files in data/raw directory with write permissions
+2. WHEN generating derivative data, THE System SHALL write outputs to data/derivatives/validation-pipeline directory
+3. WHEN creating output filenames, THE System SHALL follow BIDS naming conventions with key-value pairs
+4. WHEN generating tabular outputs, THE System SHALL create accompanying JSON data dictionaries describing columns
+5. THE System SHALL validate that all input file paths follow BIDS entity ordering (sub-XX_ses-XX_task-XX)
+6. IF BIDS validation fails, THEN THE System SHALL provide specific guidance on correct naming format
+
+### Requirement 9: Configuration and Reproducibility
+
+**User Story:** As a computational researcher, I want configurable analysis parameters with deterministic outputs, so that results are reproducible across runs.
+
+#### Acceptance Criteria
+
+1. THE System SHALL accept configuration files specifying filter parameters, epoch windows, and frequency bands
+2. WHEN stochastic operations are performed, THE System SHALL use a configurable random seed
+3. THE System SHALL log the random seed value in output metadata for reproducibility
+4. WHEN configuration parameters are used, THE System SHALL save a copy of the configuration alongside results
+5. THE System SHALL validate that all required dependencies match versions specified in environment.yml
+6. IF a required library is missing from environment.yml, THEN THE System SHALL raise an error before execution
+
+### Requirement 10: Error Handling and Diagnostics
+
+**User Story:** As a pipeline user, I want clear error messages and diagnostic information, so that I can troubleshoot issues efficiently.
+
+#### Acceptance Criteria
+
+1. WHEN file loading fails, THE System SHALL report the specific file path and reason for failure
+2. WHEN stream identification fails, THE System SHALL list all available stream names in the error message
+3. WHEN channel mapping fails, THE System SHALL report which channels have mismatched indices
+4. WHEN quality thresholds eliminate all channels, THE System SHALL warn the user and suggest threshold adjustments
+5. WHEN marker events are missing, THE System SHALL report expected marker names and what was found
+6. THE System SHALL provide progress indicators for long-running operations (filtering, epoching, TFR computation)
