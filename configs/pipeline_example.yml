@@ -1,0 +1,40 @@
+# Configuración de ejemplo para pipeline de análisis fNIRS
+# Este archivo demuestra cómo definir configuraciones en YAML
+
+preprocessing:
+  sampling_rate_hz: 10.0
+  lowpass_cutoff_hz: 0.5
+  highpass_cutoff_hz: 0.01
+  motion_correction_method: "spline"  # opciones: spline, wavelet, tddr
+  short_channel_regression: true
+  sci_threshold: 0.5
+
+hemodynamic:
+  wavelengths_nm: [760.0, 850.0]
+  dpf: [6.0, 6.0]  # Differential Pathlength Factor
+  partial_volume_correction: false
+
+analysis:
+  baseline_window_sec: [-5.0, 0.0]
+  response_window_sec: [0.0, 20.0]
+  hrf_model: "canonical"  # opciones: canonical, gamma, spm
+  random_seed: 42
+
+paths:
+  data_root: "data/raw"
+  output_root: "outputs"
+  derivatives_root: "data/derivatives"
+
+# Metadatos del experimento
+experiment:
+  name: "pilot_finger_tapping"
+  task: "fingertapping"
+  n_subjects: 1
+  n_sessions: 1
+  conditions:
+    - name: "stim1"
+      code: "2"
+      description: "Condición experimental 1"
+    - name: "stim2"
+      code: "1"
+      description: "Condición experimental 2"

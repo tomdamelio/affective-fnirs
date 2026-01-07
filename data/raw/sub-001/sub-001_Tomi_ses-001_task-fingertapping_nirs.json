@@ -1,0 +1,301 @@
+{
+    "TaskName": "fingertapping",
+    "SamplingFrequency": 8.12,
+    "Manufacturer": "Cortivision",
+    "ManufacturersModelName": "Photon Cap C20",
+    "NIRSChannelCount": 36,
+    "SourceDetectorSeparation": {
+        "Long": "30 mm",
+        "Short": "8 mm"
+    },
+    "ChMontage": [
+        {
+            "channel_idx": 0,
+            "source": "S1_FCC3h",
+            "detector": "D1_C1",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "FCC3h-C1_Hb"
+        },
+        {
+            "channel_idx": 1,
+            "source": "S1_FCC3h",
+            "detector": "D1_C1",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "FCC3h-C1_HbO"
+        },
+        {
+            "channel_idx": 2,
+            "source": "S2_FCC4h",
+            "detector": "D2_C2",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "FCC4h-C2_Hb"
+        },
+        {
+            "channel_idx": 3,
+            "source": "S2_FCC4h",
+            "detector": "D2_C2",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "FCC4h-C2_HbO"
+        },
+        {
+            "channel_idx": 4,
+            "source": "S7_CCP3h",
+            "detector": "D1_C1",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "CCP3h-C1_Hb"
+        },
+        {
+            "channel_idx": 5,
+            "source": "S7_CCP3h",
+            "detector": "D1_C1",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "CCP3h-C1_HbO"
+        },
+        {
+            "channel_idx": 6,
+            "source": "S8_CCP4h",
+            "detector": "D2_C2",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "CCP4h-C2_Hb"
+        },
+        {
+            "channel_idx": 7,
+            "source": "S8_CCP4h",
+            "detector": "D2_C2",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "CCP4h-C2_HbO"
+        },
+        {
+            "channel_idx": 8,
+            "source": "S5_CCP5h",
+            "detector": "D3_CP3",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "CCP5h-CP3_Hb"
+        },
+        {
+            "channel_idx": 9,
+            "source": "S5_CCP5h",
+            "detector": "D3_CP3",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "CCP5h-CP3_HbO"
+        },
+        {
+            "channel_idx": 10,
+            "source": "S6_CCP6h",
+            "detector": "D4_CP4",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "CCP6h-CP4_Hb"
+        },
+        {
+            "channel_idx": 11,
+            "source": "S6_CCP6h",
+            "detector": "D4_CP4",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "CCP6h-CP4_HbO"
+        },
+        {
+            "channel_idx": 12,
+            "source": "S7_CCP3h",
+            "detector": "D3_CP3",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "CCP3h-CP3_Hb"
+        },
+        {
+            "channel_idx": 13,
+            "source": "S7_CCP3h",
+            "detector": "D3_CP3",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "CCP3h-CP3_HbO"
+        },
+        {
+            "channel_idx": 14,
+            "source": "S8_CCP4h",
+            "detector": "D4_CP4",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "CCP4h-CP4_Hb"
+        },
+        {
+            "channel_idx": 15,
+            "source": "S8_CCP4h",
+            "detector": "D4_CP4",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "CCP4h-CP4_HbO"
+        },
+        {
+            "channel_idx": 16,
+            "source": "S3_FCC5h",
+            "detector": "D5_C5",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "FCC5h-C5_Hb"
+        },
+        {
+            "channel_idx": 17,
+            "source": "S3_FCC5h",
+            "detector": "D5_C5",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "FCC5h-C5_HbO"
+        },
+        {
+            "channel_idx": 18,
+            "source": "S4_FCC6h",
+            "detector": "D6_C6",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "FCC6h-C6_Hb"
+        },
+        {
+            "channel_idx": 19,
+            "source": "S4_FCC6h",
+            "detector": "D6_C6",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "FCC6h-C6_HbO"
+        },
+        {
+            "channel_idx": 20,
+            "source": "S5_CCP5h",
+            "detector": "D5_C5",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "CCP5h-C5_Hb"
+        },
+        {
+            "channel_idx": 21,
+            "source": "S5_CCP5h",
+            "detector": "D5_C5",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "CCP5h-C5_HbO"
+        },
+        {
+            "channel_idx": 22,
+            "source": "S6_CCP6h",
+            "detector": "D6_C6",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "CCP6h-C6_Hb"
+        },
+        {
+            "channel_idx": 23,
+            "source": "S6_CCP6h",
+            "detector": "D6_C6",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "CCP6h-C6_HbO"
+        },
+        {
+            "channel_idx": 24,
+            "source": "S1_FCC3h",
+            "detector": "D7_FC3",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "FCC3h-FC3_Hb"
+        },
+        {
+            "channel_idx": 25,
+            "source": "S1_FCC3h",
+            "detector": "D7_FC3",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "FCC3h-FC3_HbO"
+        },
+        {
+            "channel_idx": 26,
+            "source": "S2_FCC4h",
+            "detector": "D8_FC4",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "FCC4h-FC4_Hb"
+        },
+        {
+            "channel_idx": 27,
+            "source": "S2_FCC4h",
+            "detector": "D8_FC4",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "FCC4h-FC4_HbO"
+        },
+        {
+            "channel_idx": 28,
+            "source": "S3_FCC5h",
+            "detector": "D7_FC3",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "FCC5h-FC3_Hb"
+        },
+        {
+            "channel_idx": 29,
+            "source": "S3_FCC5h",
+            "detector": "D7_FC3",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "FCC5h-FC3_HbO"
+        },
+        {
+            "channel_idx": 30,
+            "source": "S4_FCC6h",
+            "detector": "D8_FC4",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "FCC6h-FC4_Hb"
+        },
+        {
+            "channel_idx": 31,
+            "source": "S4_FCC6h",
+            "detector": "D8_FC4",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "FCC6h-FC4_HbO"
+        },
+        {
+            "channel_idx": 32,
+            "source": "S13_ShortL",
+            "detector": "D3_CP3",
+            "wavelength": 760,
+            "type": "Short",
+            "location_label": "Short_Left_Hb"
+        },
+        {
+            "channel_idx": 33,
+            "source": "S13_ShortL",
+            "detector": "D3_CP3",
+            "wavelength": 850,
+            "type": "Short",
+            "location_label": "Short_Left_HbO"
+        },
+        {
+            "channel_idx": 34,
+            "source": "S14_ShortR",
+            "detector": "D4_CP4",
+            "wavelength": 760,
+            "type": "Short",
+            "location_label": "Short_Right_Hb"
+        },
+        {
+            "channel_idx": 35,
+            "source": "S14_ShortR",
+            "detector": "D4_CP4",
+            "wavelength": 850,
+            "type": "Short",
+            "location_label": "Short_Right_HbO"
+        }
+    ]
+}

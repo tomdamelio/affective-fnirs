@@ -1,0 +1,1662 @@
+SNIRF File: C:/Users/id05278/Desktop/fNIRS/fNIRS system - Cortivision/Data/Pilot_2023-02-09/p001_finger_tapping_33_20230209-155938.snirf
+======================================================================
+
+formatVersion: Dataset
+  Shape: (), Dtype: |S3
+  Value: b'1.0'
+nirs: Group
+  nirs/aux1: Group
+    nirs/aux1/dataTimeSeries: Dataset
+      Shape: (1941,), Dtype: float64
+    nirs/aux1/name: Dataset
+      Shape: (), Dtype: |S6
+      Value: b'gyro_x'
+    nirs/aux1/time: Dataset
+      Shape: (1941,), Dtype: float64
+  nirs/aux2: Group
+    nirs/aux2/dataTimeSeries: Dataset
+      Shape: (1941,), Dtype: float64
+    nirs/aux2/name: Dataset
+      Shape: (), Dtype: |S6
+      Value: b'gyro_y'
+    nirs/aux2/time: Dataset
+      Shape: (1941,), Dtype: float64
+  nirs/aux3: Group
+    nirs/aux3/dataTimeSeries: Dataset
+      Shape: (1941,), Dtype: float64
+    nirs/aux3/name: Dataset
+      Shape: (), Dtype: |S6
+      Value: b'gyro_z'
+    nirs/aux3/time: Dataset
+      Shape: (1941,), Dtype: float64
+  nirs/aux4: Group
+    nirs/aux4/dataTimeSeries: Dataset
+      Shape: (1941,), Dtype: float64
+    nirs/aux4/name: Dataset
+      Shape: (), Dtype: |S7
+      Value: b'accel_x'
+    nirs/aux4/time: Dataset
+      Shape: (1941,), Dtype: float64
+  nirs/aux5: Group
+    nirs/aux5/dataTimeSeries: Dataset
+      Shape: (1941,), Dtype: float64
+    nirs/aux5/name: Dataset
+      Shape: (), Dtype: |S7
+      Value: b'accel_y'
+    nirs/aux5/time: Dataset
+      Shape: (1941,), Dtype: float64
+  nirs/aux6: Group
+    nirs/aux6/dataTimeSeries: Dataset
+      Shape: (1941,), Dtype: float64
+    nirs/aux6/name: Dataset
+      Shape: (), Dtype: |S7
+      Value: b'accel_z'
+    nirs/aux6/time: Dataset
+      Shape: (1941,), Dtype: float64
+  nirs/data1: Group
+    nirs/data1/dataTimeSeries: Dataset
+      Shape: (1941, 60), Dtype: float64
+    nirs/data1/measurementList1: Group
+      nirs/data1/measurementList1/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList1/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList1/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList1/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList1/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList1/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList1/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList1/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList10: Group
+      nirs/data1/measurementList10/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList10/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList10/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList10/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList10/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList10/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [14.]
+      nirs/data1/measurementList10/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList10/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList11: Group
+      nirs/data1/measurementList11/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList11/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList11/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList11/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [5.]
+      nirs/data1/measurementList11/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList11/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList11/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList11/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList12: Group
+      nirs/data1/measurementList12/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList12/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList12/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList12/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [6.]
+      nirs/data1/measurementList12/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList12/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList12/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList12/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList13: Group
+      nirs/data1/measurementList13/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList13/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList13/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList13/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList13/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList13/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList13/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList13/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList14: Group
+      nirs/data1/measurementList14/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList14/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList14/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList14/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList14/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList14/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList14/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList14/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList15: Group
+      nirs/data1/measurementList15/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList15/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList15/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList15/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [5.]
+      nirs/data1/measurementList15/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList15/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [3.]
+      nirs/data1/measurementList15/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList15/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList16: Group
+      nirs/data1/measurementList16/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList16/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList16/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList16/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [6.]
+      nirs/data1/measurementList16/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList16/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [4.]
+      nirs/data1/measurementList16/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList16/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList17: Group
+      nirs/data1/measurementList17/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList17/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList17/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList17/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList17/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList17/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList17/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList17/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList18: Group
+      nirs/data1/measurementList18/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList18/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList18/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList18/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList18/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList18/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList18/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList18/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList19: Group
+      nirs/data1/measurementList19/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList19/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList19/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList19/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [3.]
+      nirs/data1/measurementList19/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList19/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList19/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList19/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList2: Group
+      nirs/data1/measurementList2/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList2/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList2/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList2/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList2/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList2/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList2/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList2/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList20: Group
+      nirs/data1/measurementList20/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList20/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList20/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList20/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [4.]
+      nirs/data1/measurementList20/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList20/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList20/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList20/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList21: Group
+      nirs/data1/measurementList21/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList21/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList21/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList21/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [3.]
+      nirs/data1/measurementList21/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList21/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [5.]
+      nirs/data1/measurementList21/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList21/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList22: Group
+      nirs/data1/measurementList22/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList22/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList22/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList22/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [4.]
+      nirs/data1/measurementList22/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList22/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [6.]
+      nirs/data1/measurementList22/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList22/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList23: Group
+      nirs/data1/measurementList23/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList23/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList23/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList23/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList23/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList23/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList23/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList23/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList24: Group
+      nirs/data1/measurementList24/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList24/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList24/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList24/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList24/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList24/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList24/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList24/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList25: Group
+      nirs/data1/measurementList25/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList25/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList25/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList25/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList25/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList25/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList25/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList25/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList26: Group
+      nirs/data1/measurementList26/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList26/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList26/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList26/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList26/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList26/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [12.]
+      nirs/data1/measurementList26/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList26/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList27: Group
+      nirs/data1/measurementList27/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList27/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList27/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList27/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList27/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList27/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [15.]
+      nirs/data1/measurementList27/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList27/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList28: Group
+      nirs/data1/measurementList28/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList28/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList28/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList28/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [10.]
+      nirs/data1/measurementList28/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList28/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [10.]
+      nirs/data1/measurementList28/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList28/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList29: Group
+      nirs/data1/measurementList29/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList29/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList29/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList29/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [10.]
+      nirs/data1/measurementList29/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList29/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [11.]
+      nirs/data1/measurementList29/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList29/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList3: Group
+      nirs/data1/measurementList3/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList3/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList3/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList3/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList3/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList3/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [3.]
+      nirs/data1/measurementList3/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList3/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList30: Group
+      nirs/data1/measurementList30/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList30/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList30/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList30/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [10.]
+      nirs/data1/measurementList30/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList30/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [16.]
+      nirs/data1/measurementList30/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList30/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList31: Group
+      nirs/data1/measurementList31/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList31/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList31/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList31/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList31/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList31/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList31/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList31/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList32: Group
+      nirs/data1/measurementList32/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList32/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList32/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList32/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList32/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList32/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList32/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList32/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList33: Group
+      nirs/data1/measurementList33/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList33/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList33/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList33/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList33/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList33/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [3.]
+      nirs/data1/measurementList33/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList33/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList34: Group
+      nirs/data1/measurementList34/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList34/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList34/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList34/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList34/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList34/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [4.]
+      nirs/data1/measurementList34/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList34/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList35: Group
+      nirs/data1/measurementList35/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList35/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList35/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList35/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList35/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList35/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [5.]
+      nirs/data1/measurementList35/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList35/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList36: Group
+      nirs/data1/measurementList36/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList36/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList36/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList36/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList36/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList36/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [6.]
+      nirs/data1/measurementList36/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList36/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList37: Group
+      nirs/data1/measurementList37/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList37/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList37/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList37/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList37/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList37/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList37/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList37/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList38: Group
+      nirs/data1/measurementList38/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList38/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList38/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList38/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList38/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList38/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList38/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList38/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList39: Group
+      nirs/data1/measurementList39/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList39/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList39/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList39/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList39/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList39/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [13.]
+      nirs/data1/measurementList39/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList39/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList4: Group
+      nirs/data1/measurementList4/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList4/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList4/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList4/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList4/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList4/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [4.]
+      nirs/data1/measurementList4/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList4/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList40: Group
+      nirs/data1/measurementList40/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList40/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList40/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList40/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList40/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList40/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [14.]
+      nirs/data1/measurementList40/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList40/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList41: Group
+      nirs/data1/measurementList41/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList41/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList41/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList41/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [5.]
+      nirs/data1/measurementList41/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList41/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList41/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList41/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList42: Group
+      nirs/data1/measurementList42/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList42/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList42/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList42/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [6.]
+      nirs/data1/measurementList42/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList42/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList42/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList42/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList43: Group
+      nirs/data1/measurementList43/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList43/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList43/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList43/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList43/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList43/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList43/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList43/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList44: Group
+      nirs/data1/measurementList44/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList44/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList44/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList44/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList44/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList44/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList44/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList44/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList45: Group
+      nirs/data1/measurementList45/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList45/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList45/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList45/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [5.]
+      nirs/data1/measurementList45/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList45/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [3.]
+      nirs/data1/measurementList45/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList45/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList46: Group
+      nirs/data1/measurementList46/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList46/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList46/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList46/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [6.]
+      nirs/data1/measurementList46/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList46/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [4.]
+      nirs/data1/measurementList46/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList46/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList47: Group
+      nirs/data1/measurementList47/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList47/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList47/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList47/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList47/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList47/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList47/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList47/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList48: Group
+      nirs/data1/measurementList48/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList48/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList48/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList48/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList48/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList48/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList48/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList48/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList49: Group
+      nirs/data1/measurementList49/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList49/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList49/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList49/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [3.]
+      nirs/data1/measurementList49/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList49/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList49/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList49/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList5: Group
+      nirs/data1/measurementList5/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList5/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList5/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList5/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList5/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList5/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [5.]
+      nirs/data1/measurementList5/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList5/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList50: Group
+      nirs/data1/measurementList50/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList50/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList50/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList50/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [4.]
+      nirs/data1/measurementList50/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList50/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList50/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList50/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList51: Group
+      nirs/data1/measurementList51/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList51/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList51/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList51/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [3.]
+      nirs/data1/measurementList51/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList51/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [5.]
+      nirs/data1/measurementList51/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList51/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList52: Group
+      nirs/data1/measurementList52/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList52/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList52/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList52/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [4.]
+      nirs/data1/measurementList52/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList52/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [6.]
+      nirs/data1/measurementList52/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList52/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList53: Group
+      nirs/data1/measurementList53/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList53/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList53/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList53/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList53/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList53/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList53/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList53/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList54: Group
+      nirs/data1/measurementList54/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList54/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList54/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList54/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList54/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList54/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList54/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList54/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList55: Group
+      nirs/data1/measurementList55/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList55/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList55/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList55/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList55/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList55/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList55/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList55/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList56: Group
+      nirs/data1/measurementList56/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList56/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList56/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList56/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList56/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList56/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [12.]
+      nirs/data1/measurementList56/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList56/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList57: Group
+      nirs/data1/measurementList57/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList57/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList57/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList57/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [9.]
+      nirs/data1/measurementList57/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList57/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [15.]
+      nirs/data1/measurementList57/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList57/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList58: Group
+      nirs/data1/measurementList58/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList58/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList58/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList58/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [10.]
+      nirs/data1/measurementList58/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList58/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [10.]
+      nirs/data1/measurementList58/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList58/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList59: Group
+      nirs/data1/measurementList59/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList59/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList59/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList59/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [10.]
+      nirs/data1/measurementList59/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList59/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [11.]
+      nirs/data1/measurementList59/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList59/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList6: Group
+      nirs/data1/measurementList6/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList6/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList6/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList6/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList6/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList6/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [6.]
+      nirs/data1/measurementList6/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList6/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList60: Group
+      nirs/data1/measurementList60/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList60/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList60/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList60/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [10.]
+      nirs/data1/measurementList60/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList60/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [16.]
+      nirs/data1/measurementList60/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList60/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+    nirs/data1/measurementList7: Group
+      nirs/data1/measurementList7/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList7/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList7/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList7/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList7/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList7/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [7.]
+      nirs/data1/measurementList7/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList7/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList8: Group
+      nirs/data1/measurementList8/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList8/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList8/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList8/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [2.]
+      nirs/data1/measurementList8/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList8/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [8.]
+      nirs/data1/measurementList8/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList8/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/measurementList9: Group
+      nirs/data1/measurementList9/dataType: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList9/dataTypeIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList9/detectorGain: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList9/detectorIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+      nirs/data1/measurementList9/moduleIndex: Dataset
+        Shape: (), Dtype: float64
+        Value: 1.0
+      nirs/data1/measurementList9/sourceIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [13.]
+      nirs/data1/measurementList9/sourcePower: Dataset
+        Shape: (), Dtype: float64
+        Value: 0.0
+      nirs/data1/measurementList9/wavelengthIndex: Dataset
+        Shape: (1,), Dtype: float64
+        Value: [1.]
+    nirs/data1/time: Dataset
+      Shape: (1941,), Dtype: float64
+  nirs/metaDataTags: Group
+    nirs/metaDataTags/AppName: Dataset
+      Shape: (), Dtype: |S9
+      Value: b'Cortiview'
+    nirs/metaDataTags/FrequencyUnit: Dataset
+      Shape: (1,), Dtype: |S2
+      Value: [b'Hz']
+    nirs/metaDataTags/LengthUnit: Dataset
+      Shape: (1,), Dtype: |S2
+      Value: [b'mm']
+    nirs/metaDataTags/ManufacturerName: Dataset
+      Shape: (), Dtype: |S11
+      Value: b'Cortivision'
+    nirs/metaDataTags/MeasurementDate: Dataset
+      Shape: (1,), Dtype: |S10
+      Value: [b'2023-02-09']
+    nirs/metaDataTags/MeasurementTime: Dataset
+      Shape: (1,), Dtype: |S8
+      Value: [b'15:59:38']
+    nirs/metaDataTags/Model: Dataset
+      Shape: (1,), Dtype: |S10
+      Value: [b'Photon Cap']
+    nirs/metaDataTags/OptModel: Dataset
+      Shape: (1,), Dtype: |S8
+      Value: [b'Standard']
+    nirs/metaDataTags/OptSerialNumber: Dataset
+      Shape: (1,), Dtype: |S8
+      Value: [b'O2722034']
+    nirs/metaDataTags/SerialNumber: Dataset
+      Shape: (1,), Dtype: |S8
+      Value: [b'C2022045']
+    nirs/metaDataTags/SnirfDraft: Dataset
+      Shape: (), Dtype: |S1
+      Value: b'3'
+    nirs/metaDataTags/SubjectID: Dataset
+      Shape: (1,), Dtype: |S7
+      Value: [b'default']
+    nirs/metaDataTags/TimeUnit: Dataset
+      Shape: (1,), Dtype: |S1
+      Value: [b's']
+  nirs/probe: Group
+    nirs/probe/correlationTimeDelayWidths: Dataset
+      Shape: (1,), Dtype: float64
+      Value: [0.]
+    nirs/probe/correlationTimeDelays: Dataset
+      Shape: (1,), Dtype: float64
+      Value: [0.]
+    nirs/probe/detectorLabels: Dataset
+      Shape: (10,), Dtype: |S3
+      Value: [b'D1' b'D2' b'D3' b'D4' b'D5' b'D6' b'D7' b'D8' b'D9' b'D10']
+    nirs/probe/detectorPos2D: Dataset
+      Shape: (10, 2), Dtype: float64
+    nirs/probe/detectorPos3D: Dataset
+      Shape: (10, 3), Dtype: float64
+    nirs/probe/frequencies: Dataset
+      Shape: (1,), Dtype: float64
+      Value: [1.]
+    nirs/probe/landmarkLabels: Dataset
+      Shape: (26,), Dtype: |S4
+    nirs/probe/landmarkPos2D: Dataset
+      Shape: (26, 2), Dtype: float64
+    nirs/probe/landmarkPos3D: Dataset
+      Shape: (26, 3), Dtype: float64
+    nirs/probe/sourceLabels: Dataset
+      Shape: (16,), Dtype: |S3
+      Value: [b'S1' b'S2' b'S3' b'S4' b'S5' b'S6' b'S7' b'S8' b'S9' b'S10' b'S11'
+ b'S12' b'S13' b'S14' b'S15' b'S16']
+    nirs/probe/sourcePos2D: Dataset
+      Shape: (16, 2), Dtype: float64
+    nirs/probe/sourcePos3D: Dataset
+      Shape: (16, 3), Dtype: float64
+    nirs/probe/timeDelayWidths: Dataset
+      Shape: (1,), Dtype: float64
+      Value: [0.]
+    nirs/probe/timeDelays: Dataset
+      Shape: (1,), Dtype: float64
+      Value: [0.]
+    nirs/probe/wavelengths: Dataset
+      Shape: (2,), Dtype: float64
+      Value: [760. 850.]
+  nirs/stim1: Group
+    nirs/stim1/data: Dataset
+      Shape: (5, 3), Dtype: float64
+      Value: [[ 32.886   1.      2.   ]
+ [139.258   1.      2.   ]
+ [209.496   1.      2.   ]
+ [279.734   1.      2.   ]
+ [314.853   1.      2.   ]]
+    nirs/stim1/name: Dataset
+      Shape: (), Dtype: |S1
+      Value: b'2'
+  nirs/stim2: Group
+    nirs/stim2/data: Dataset
+      Shape: (5, 3), Dtype: float64
+      Value: [[ 68.208   1.      1.   ]
+ [103.327   1.      1.   ]
+ [174.377   1.      1.   ]
+ [245.021   1.      1.   ]
+ [350.581   1.      1.   ]]
+    nirs/stim2/name: Dataset
+      Shape: (), Dtype: |S1
+      Value: b'1'

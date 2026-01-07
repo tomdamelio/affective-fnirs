@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "Si usas este software, por favor cítalo como se indica a continuación."
+title: "affective-fnirs: Análisis de datos fNIRS para neurociencia cognitiva y afectiva"
+version: 0.1.0
+date-released: 2026-01-07
+authors:
+  - family-names: "D'Amelio"
+    given-names: "Tomás Ariel"
+repository-code: "https://github.com/tomdamelio/affective-fnirs"
+keywords:
+  - fNIRS
+  - EEG
+  - VR
+  - affective neuroscience
+license: MIT
