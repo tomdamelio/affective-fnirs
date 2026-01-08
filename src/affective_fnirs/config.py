@@ -116,11 +116,11 @@ class EpochConfig:
         baseline_tmax_sec: Baseline window end for correction (seconds)
     """
 
-    eeg_tmin_sec: float = -5.0
-    eeg_tmax_sec: float = 20.0
-    fnirs_tmin_sec: float = -5.0
-    fnirs_tmax_sec: float = 30.0
-    baseline_tmin_sec: float = -5.0
+    eeg_tmin_sec: float = -3.0
+    eeg_tmax_sec: float = 15.0
+    fnirs_tmin_sec: float = -3.0
+    fnirs_tmax_sec: float = 15.0
+    baseline_tmin_sec: float = -3.0
     baseline_tmax_sec: float = -1.0
 
     def __post_init__(self) -> None:
@@ -203,20 +203,24 @@ class ICAConfig:
     ICA configuration for EEG artifact removal.
 
     Attributes:
+        enabled: Whether to apply ICA artifact removal (default: True)
         n_components: Number of ICA components (float for variance ratio, int for count)
         random_state: Random seed for reproducibility
         max_iter: Maximum iterations for ICA fitting
         eog_threshold: Correlation threshold for EOG component detection
         emg_threshold: High-frequency power ratio threshold for EMG detection
         min_components: Minimum number of components to use
+        max_bad_channels_for_skip: Skip ICA if bad channels <= this (default: 3)
     """
 
-    n_components: float = 0.99
+    enabled: bool = True
+    n_components: int | float = 20
     random_state: int = 42
     max_iter: int = 1000
-    eog_threshold: float = 0.8
-    emg_threshold: float = 2.0
+    eog_threshold: float = 0.9
+    emg_threshold: float = 2.5
     min_components: int = 15
+    max_bad_channels_for_skip: int = 3
 
     def __post_init__(self) -> None:
         """Validate ICA parameters."""

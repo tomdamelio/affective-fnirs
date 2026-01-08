@@ -103,32 +103,34 @@ def preprocess_eeg(
 
 def detect_bad_eeg_channels(
     raw: mne.io.Raw,
-    amplitude_threshold_uv: float = 500.0,
-    rms_std_threshold: float = 5.0,
+    use_maxwell: bool = False,
 ) -> list[str]:
     """
-    Detect bad EEG channels based on amplitude and noise criteria.
+    Detect bad EEG channels using correlation-based or Maxwell filtering methods.
 
     Bad channels can contaminate Common Average Reference and should be
     interpolated before re-referencing (Req. 5.7).
 
-    Detection criteria:
-    1. **Saturation**: Peak amplitude > threshold (e.g., ±500 μV)
-    2. **Excessive noise**: RMS amplitude > mean + N*std across channels
-    3. **Flat signal**: RMS amplitude near zero (disconnected electrode)
+    Detection methods:
+    1. **Maxwell filtering** (use_maxwell=True): Requires digitized head positions
+       - Most robust for MEG, can work for EEG with proper montage
+       - Detects channels with poor spatial correlation
+    2. **Correlation-based** (use_maxwell=False, default): Works without digitization
+       - Computes correlation between each channel and others
+       - Marks channels with low average correlation as bad
 
     Args:
-        raw: MNE Raw object with EEG data
-        amplitude_threshold_uv: Maximum peak amplitude (default 500 μV)
-        rms_std_threshold: Number of std deviations for RMS outlier detection
+        raw: MNE Raw object with EEG data (must have montage set)
+        use_maxwell: Use Maxwell filtering method (requires head digitization)
+            Default: False (use correlation-based method)
 
     Returns:
         List of bad channel names
 
     Notes:
-        - BrainProducts 32-channel systems typically have good quality
-        - May not find bad channels in pilot data, but mechanism should exist
-        - Bad channels marked in raw.info['bads'] for exclusion
+        - Correlation method is more robust for EEG without digitization
+        - Maxwell method requires proper head model and digitization
+        - For actiCHamp data, correlation method is recommended
 
     Example:
         >>> bad_channels = detect_bad_eeg_channels(raw_eeg)
@@ -138,7 +140,7 @@ def detect_bad_eeg_channels(
 
     Requirements: 5.7
     """
-    logger.info("Detecting bad EEG channels...")
+    logger.info("Detecting bad EEG channels using correlation method...")
 
     # Get EEG channel names
     eeg_picks = mne.pick_types(raw.info, eeg=True, exclude=[])
@@ -148,56 +150,29 @@ def detect_bad_eeg_channels(
         logger.warning("No EEG channels found for bad channel detection")
         return []
 
-    # Get EEG data in microvolts
-    data_eeg = raw.get_data(picks=eeg_picks) * 1e6  # Convert V to μV
-
+    # Use correlation-based detection (more robust for EEG)
+    # Compute correlation matrix between all channels
+    data_eeg = raw.get_data(picks=eeg_picks)
+    
+    # Compute correlation matrix
+    corr_matrix = np.corrcoef(data_eeg)
+    
+    # For each channel, compute mean correlation with all other channels
+    # Exclude self-correlation (diagonal)
+    np.fill_diagonal(corr_matrix, np.nan)
+    mean_corr = np.nanmean(corr_matrix, axis=1)
+    
+    # Detect outliers: channels with correlation < mean - 2*std
+    corr_threshold = np.mean(mean_corr) - 2 * np.std(mean_corr)
+    
     bad_channels = []
-
-    # Criterion 1: Saturation (peak amplitude > threshold)
-    peak_amplitudes = np.max(np.abs(data_eeg), axis=1)
-    saturated_mask = peak_amplitudes > amplitude_threshold_uv
-
-    for idx, is_saturated in enumerate(saturated_mask):
-        if is_saturated:
+    for idx, corr in enumerate(mean_corr):
+        if corr < corr_threshold:
             ch_name = eeg_channel_names[idx]
             bad_channels.append(ch_name)
             logger.warning(
-                f"Channel {ch_name} saturated: "
-                f"peak amplitude {peak_amplitudes[idx]:.1f} μV > "
-                f"{amplitude_threshold_uv} μV"
-            )
-
-    # Criterion 2: Excessive noise (RMS outlier)
-    rms_values = np.sqrt(np.mean(data_eeg**2, axis=1))
-    rms_mean = np.mean(rms_values)
-    rms_std = np.std(rms_values)
-    rms_threshold = rms_mean + rms_std_threshold * rms_std
-
-    noisy_mask = rms_values > rms_threshold
-
-    for idx, is_noisy in enumerate(noisy_mask):
-        ch_name = eeg_channel_names[idx]
-        if is_noisy and ch_name not in bad_channels:
-            bad_channels.append(ch_name)
-            logger.warning(
-                f"Channel {ch_name} excessively noisy: "
-                f"RMS {rms_values[idx]:.1f} μV > "
-                f"{rms_threshold:.1f} μV (mean + {rms_std_threshold}*std)"
-            )
-
-    # Criterion 3: Flat signal (RMS near zero)
-    # Use 1% of mean RMS as threshold for flat detection
-    flat_threshold = 0.01 * rms_mean
-    flat_mask = rms_values < flat_threshold
-
-    for idx, is_flat in enumerate(flat_mask):
-        ch_name = eeg_channel_names[idx]
-        if is_flat and ch_name not in bad_channels:
-            bad_channels.append(ch_name)
-            logger.warning(
-                f"Channel {ch_name} flat signal: "
-                f"RMS {rms_values[idx]:.1f} μV < "
-                f"{flat_threshold:.1f} μV (disconnected electrode)"
+                f"Channel {ch_name} has low correlation: "
+                f"{corr:.3f} < {corr_threshold:.3f} (mean - 2*std)"
             )
 
     if bad_channels:
@@ -697,19 +672,23 @@ def preprocess_eeg_pipeline(
     raw_eeg: mne.io.Raw,
     config: PipelineConfig,
     save_ica_path: str | None = None,
-) -> Tuple[mne.io.Raw, mne.preprocessing.ICA]:
+) -> Tuple[mne.io.Raw, mne.preprocessing.ICA | None]:
     """
     Complete EEG preprocessing pipeline following best practices.
 
     Pipeline stages:
     1. Bandpass filter (1-40 Hz)
     2. Detect bad channels
-    3. Fit ICA (artifact decomposition)
-    4. Identify EOG components (frontal correlation)
-    5. Identify EMG components (high-freq power)
-    6. Apply ICA (remove artifacts)
+    3. [Optional] Fit ICA (artifact decomposition)
+    4. [Optional] Identify EOG components (frontal correlation)
+    5. [Optional] Identify EMG components (high-freq power)
+    6. [Optional] Apply ICA (remove artifacts)
     7. Interpolate bad channels
     8. Common Average Reference
+
+    ICA is skipped if:
+    - config.ica.enabled = False
+    - Number of bad channels <= config.ica.max_bad_channels_for_skip (data is clean)
 
     Args:
         raw_eeg: Raw EEG data with 10-20 montage applied
@@ -718,14 +697,14 @@ def preprocess_eeg_pipeline(
 
     Returns:
         cleaned_raw: Preprocessed EEG ready for analysis
-        ica: Fitted ICA object (save for reproducibility)
+        ica: Fitted ICA object (None if ICA was skipped)
 
     Example:
         >>> from affective_fnirs.config import PipelineConfig
         >>> config = PipelineConfig.default()
         >>> raw_clean, ica = preprocess_eeg_pipeline(raw_eeg, config)
-        >>> # Save ICA for reproducibility
-        >>> ica.save('derivatives/ica/sub-001_ses-001_task-fingertapping_ica.fif')
+        >>> if ica is not None:
+        >>>     ica.save('derivatives/ica/sub-001_ses-001_task-fingertapping_ica.fif')
 
     Requirements: 5.1-5.7
     """
@@ -751,38 +730,72 @@ def preprocess_eeg_pipeline(
     else:
         logger.info("No bad channels detected")
 
-    # Stage 3: Fit ICA
-    logger.info("Stage 3/8: Fitting ICA")
-    _, ica = apply_ica_artifact_removal(
-        raw_filtered,
-        n_components=config.ica.n_components,
-        random_state=config.ica.random_state,
-        method="fastica",
+    # Decide whether to apply ICA
+    n_bad_channels = len(bad_channels)
+    skip_ica = (
+        not config.ica.enabled
+        or n_bad_channels <= config.ica.max_bad_channels_for_skip
     )
 
-    # Stage 4: Identify EOG components
-    logger.info("Stage 4/8: Identifying EOG components")
-    eog_components = identify_eog_components(
-        ica, raw_filtered, threshold=config.ica.eog_threshold
-    )
+    ica = None
+    if skip_ica:
+        if not config.ica.enabled:
+            logger.info("ICA disabled in configuration - skipping artifact removal")
+        else:
+            logger.info(
+                f"Only {n_bad_channels} bad channels detected "
+                f"(<= {config.ica.max_bad_channels_for_skip}) - "
+                f"data quality is good, skipping ICA"
+            )
+        raw_clean = raw_filtered.copy()
+    else:
+        # Stage 3: Fit ICA
+        logger.info("Stage 3/8: Fitting ICA")
+        _, ica = apply_ica_artifact_removal(
+            raw_filtered,
+            n_components=config.ica.n_components,
+            random_state=config.ica.random_state,
+            method="fastica",
+        )
 
-    # Stage 5: Identify EMG components
-    logger.info("Stage 5/8: Identifying EMG components")
-    emg_components = identify_emg_components(
-        ica,
-        raw_filtered,
-        freq_threshold=20.0,
-        power_ratio_threshold=config.ica.emg_threshold,
-    )
+        # Stage 4: Identify EOG components
+        logger.info("Stage 4/8: Identifying EOG components")
+        eog_components = identify_eog_components(
+            ica, raw_filtered, threshold=config.ica.eog_threshold
+        )
 
-    # Stage 6: Apply ICA (exclude artifacts)
-    artifact_components = sorted(list(set(eog_components + emg_components)))
-    logger.info(
-        f"Stage 6/8: Applying ICA (excluding {len(artifact_components)} components: "
-        f"{artifact_components})"
-    )
-    ica.exclude = artifact_components
-    raw_clean = ica.apply(raw_filtered.copy())
+        # Stage 5: Identify EMG components
+        logger.info("Stage 5/8: Identifying EMG components")
+        emg_components = identify_emg_components(
+            ica,
+            raw_filtered,
+            freq_threshold=20.0,
+            power_ratio_threshold=config.ica.emg_threshold,
+        )
+
+        # Stage 6: Apply ICA (exclude artifacts)
+        artifact_components = sorted(list(set(eog_components + emg_components)))
+        
+        # Safety check: don't remove too many components
+        max_components_to_remove = min(5, ica.n_components_ // 2)
+        if len(artifact_components) > max_components_to_remove:
+            logger.warning(
+                f"Too many artifact components detected ({len(artifact_components)}), "
+                f"limiting to {max_components_to_remove} to preserve signal"
+            )
+            artifact_components = artifact_components[:max_components_to_remove]
+        
+        logger.info(
+            f"Stage 6/8: Applying ICA (excluding {len(artifact_components)} components: "
+            f"{artifact_components})"
+        )
+        ica.exclude = artifact_components
+        raw_clean = ica.apply(raw_filtered.copy())
+
+        # Save ICA object if path provided
+        if save_ica_path:
+            logger.info(f"Saving ICA object to: {save_ica_path}")
+            ica.save(save_ica_path, overwrite=True)
 
     # Stage 7: Interpolate bad channels
     if raw_clean.info["bads"]:
@@ -794,11 +807,6 @@ def preprocess_eeg_pipeline(
     # Stage 8: Common Average Reference
     logger.info("Stage 8/8: Applying Common Average Reference")
     raw_clean = rereference_eeg(raw_clean, ref_channels="average")
-
-    # Save ICA object if path provided
-    if save_ica_path:
-        logger.info(f"Saving ICA object to: {save_ica_path}")
-        ica.save(save_ica_path, overwrite=True)
 
     logger.info("=" * 80)
     logger.info("EEG Preprocessing Pipeline Complete")

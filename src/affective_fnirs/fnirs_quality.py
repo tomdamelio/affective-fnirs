@@ -77,15 +77,26 @@ def calculate_sci(
         - PMC7677693: SCI implementation in NIRSplot
     """
     # Validate channel types
+    # Filter to only fNIRS channels (exclude misc, AUX, etc.)
     channel_types = raw.get_channel_types()
-    if not all(ch_type == "fnirs_cw_amplitude" for ch_type in channel_types):
+    fnirs_picks = [i for i, ch_type in enumerate(channel_types) if ch_type == "fnirs_cw_amplitude"]
+    
+    if not fnirs_picks:
         raise ValueError(
-            "calculate_sci() requires fnirs_cw_amplitude channel types. "
-            f"Found: {set(channel_types)}"
+            "calculate_sci() requires at least one fnirs_cw_amplitude channel. "
+            f"Found channel types: {set(channel_types)}"
         )
+    
+    # Create a copy with only fNIRS channels
+    raw_fnirs = raw.copy().pick(fnirs_picks)
+    
+    logger.info(
+        f"Calculating SCI on {len(fnirs_picks)} fNIRS channels "
+        f"(excluded {len(channel_types) - len(fnirs_picks)} non-fNIRS channels)"
+    )
 
     # Verify Nyquist criterion
-    sfreq = raw.info["sfreq"]
+    sfreq = raw_fnirs.info["sfreq"]
     nyquist_freq = sfreq / 2
     if freq_range[1] >= nyquist_freq:
         raise ValueError(
@@ -103,7 +114,7 @@ def calculate_sci(
     try:
         from mne_nirs.preprocessing import scalp_coupling_index
 
-        sci_raw = scalp_coupling_index(raw)
+        sci_raw = scalp_coupling_index(raw_fnirs)
 
         # Extract SCI values from the returned Raw object
         # MNE-NIRS stores SCI in the data array after computation
@@ -144,7 +155,7 @@ def calculate_sci(
         )
 
         # Manual implementation as fallback
-        return _calculate_sci_manual(raw, freq_range, sci_threshold)
+        return _calculate_sci_manual(raw_fnirs, freq_range, sci_threshold)
 
 
 def _calculate_sci_manual(
@@ -264,18 +275,27 @@ def calculate_coefficient_of_variation(
         - PMC7677693: CV calculation in baseline periods
         - PMC4752525: CV as complementary quality metric
     """
-    # Validate channel types
+    # Filter to only fNIRS channels (exclude AUX/misc channels)
     channel_types = raw.get_channel_types()
-    if not all(ch_type == "fnirs_cw_amplitude" for ch_type in channel_types):
+    fnirs_channels = [
+        ch
+        for ch, ch_type in zip(raw.ch_names, channel_types)
+        if ch_type == "fnirs_cw_amplitude"
+    ]
+
+    if len(fnirs_channels) == 0:
         raise ValueError(
-            "calculate_coefficient_of_variation() requires fnirs_cw_amplitude "
-            f"channel types. Found: {set(channel_types)}"
+            "No fnirs_cw_amplitude channels found. "
+            f"Available channel types: {set(channel_types)}"
         )
 
+    # Pick only fNIRS channels
+    raw_fnirs = raw.copy().pick(fnirs_channels)
+
     # Get data and channel names
-    data = raw.get_data()
-    channel_names = raw.ch_names
-    sfreq = raw.info["sfreq"]
+    data = raw_fnirs.get_data()
+    channel_names = raw_fnirs.ch_names
+    sfreq = raw_fnirs.info["sfreq"]
 
     # Determine baseline segments
     if baseline_annotations is None:
@@ -391,9 +411,26 @@ def detect_saturation(
         If adc_max=65535 and saturation_threshold=0.95:
         Samples > 62,258 are considered saturated
     """
+    # Filter to only fNIRS channels (exclude AUX/misc channels)
+    channel_types = raw.get_channel_types()
+    fnirs_channels = [
+        ch
+        for ch, ch_type in zip(raw.ch_names, channel_types)
+        if ch_type == "fnirs_cw_amplitude"
+    ]
+
+    if len(fnirs_channels) == 0:
+        raise ValueError(
+            "No fnirs_cw_amplitude channels found. "
+            f"Available channel types: {set(channel_types)}"
+        )
+
+    # Pick only fNIRS channels
+    raw_fnirs = raw.copy().pick(fnirs_channels)
+
     # Get data and channel names
-    data = raw.get_data()
-    channel_names = raw.ch_names
+    data = raw_fnirs.get_data()
+    channel_names = raw_fnirs.ch_names
 
     # Determine ADC maximum
     if adc_max is None:
@@ -537,8 +574,25 @@ def assess_cardiac_power(
         - PMC4752525: PSP definition and validation
         - artinis.com: PSP implementation guidelines
     """
+    # Filter to only fNIRS channels (exclude AUX/misc channels)
+    channel_types = raw.get_channel_types()
+    fnirs_channels = [
+        ch
+        for ch, ch_type in zip(raw.ch_names, channel_types)
+        if ch_type == "fnirs_cw_amplitude"
+    ]
+
+    if len(fnirs_channels) == 0:
+        raise ValueError(
+            "No fnirs_cw_amplitude channels found. "
+            f"Available channel types: {set(channel_types)}"
+        )
+
+    # Pick only fNIRS channels
+    raw_fnirs = raw.copy().pick(fnirs_channels)
+
     # Validate sampling rate
-    sfreq = raw.info["sfreq"]
+    sfreq = raw_fnirs.info["sfreq"]
     nyquist_freq = sfreq / 2
     if freq_range[1] >= nyquist_freq:
         raise ValueError(
@@ -547,8 +601,8 @@ def assess_cardiac_power(
         )
 
     # Get data and channel names
-    data = raw.get_data()
-    channel_names = raw.ch_names
+    data = raw_fnirs.get_data()
+    channel_names = raw_fnirs.ch_names
 
     logger.info(
         f"Assessing cardiac power in {freq_range[0]}-{freq_range[1]} Hz band "

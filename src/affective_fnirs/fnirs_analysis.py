@@ -139,7 +139,19 @@ def create_fnirs_epochs(
 
     # Create epochs
     # Pick only HbO and HbR channels (exclude short channels if present)
-    picks = mne.pick_types(raw.info, fnirs="hbo") + mne.pick_types(raw.info, fnirs="hbr")
+    hbo_picks = mne.pick_types(raw.info, fnirs="hbo")
+    hbr_picks = mne.pick_types(raw.info, fnirs="hbr")
+    picks = np.concatenate([hbo_picks, hbr_picks]) if len(hbo_picks) > 0 or len(hbr_picks) > 0 else None
+    
+    if picks is None or len(picks) == 0:
+        # Fallback: try to pick all fnirs channels
+        logger.warning("No HbO/HbR channels found, trying all fNIRS channels")
+        picks = mne.pick_types(raw.info, fnirs=True)
+        if len(picks) == 0:
+            raise ValueError(
+                "No fNIRS channels found in raw data. "
+                f"Available channel types: {set(raw.get_channel_types())}"
+            )
 
     epochs = mne.Epochs(
         raw,
@@ -164,8 +176,7 @@ def create_fnirs_epochs(
 
 
 def identify_motor_roi_channel(
-    raw: mne.io.Raw,
-    montage_config: dict,
+    raw_or_epochs: mne.io.Raw | mne.Epochs,
     target_region: str = "C3",
 ) -> str:
     """
@@ -177,21 +188,19 @@ def identify_motor_roi_channel(
     - "CCP1h-CP1" (channels 8-9): Medial alternative
 
     Algorithm:
-    1. Extract channel positions from montage_config or raw.info
-    2. Extract C3 position from 10-20 system
-    3. Compute Euclidean distance from each fNIRS channel to C3
-    4. Return channel name with minimum distance
+    1. Try to extract channel positions from raw.info montage
+    2. If no montage, use channel naming heuristics (e.g., "C3" in name)
+    3. Fallback to first available HbO channel
 
     Args:
-        raw: MNE Raw object with HbO/HbR channels
-        montage_config: Channel montage with 3D positions (optional, can use raw.info)
+        raw_or_epochs: MNE Raw or Epochs object with HbO/HbR channels
         target_region: EEG channel name for target region (default 'C3')
 
     Returns:
-        Channel name closest to target region (e.g., 'CCP3h-CP3 hbo')
+        Channel name closest to target region (e.g., 'S1_D1 hbo')
 
     Raises:
-        ValueError: If target region not found or no valid channels
+        ValueError: If no valid HbO channels found
 
     Notes:
         - Use HbO channel for analysis (HbR shows inverse pattern)
@@ -200,81 +209,109 @@ def identify_motor_roi_channel(
         - Alternative: Manual selection based on montage inspection
 
     Example:
-        >>> motor_channel = identify_motor_roi_channel(raw_haemo, montage_config)
+        >>> motor_channel = identify_motor_roi_channel(epochs_fnirs, "C3")
         >>> print(f"Motor ROI channel: {motor_channel}")
-        >>> # Output: "Motor ROI channel: CCP3h-CP3 hbo"
+        >>> # Output: "Motor ROI channel: S1_D1 hbo"
 
     Requirements: 6.7
     """
     logger.info(f"Identifying fNIRS channel closest to {target_region}")
 
-    # Get target position from standard 10-20 montage
-    standard_montage = mne.channels.make_standard_montage("standard_1020")
-    target_pos = None
-
-    for ch_name, pos in zip(standard_montage.ch_names, standard_montage.get_positions()["ch_pos"].values()):
-        if ch_name == target_region:
-            target_pos = np.array(pos)
-            break
-
-    if target_pos is None:
-        raise ValueError(
-            f"Target region '{target_region}' not found in standard 10-20 montage"
-        )
-
-    logger.info(f"Target position for {target_region}: {target_pos}")
-
-    # Get fNIRS channel positions from raw.info
-    fnirs_positions = raw.get_montage().get_positions()
-    ch_pos = fnirs_positions["ch_pos"]
+    # Get info from Raw or Epochs
+    info = raw_or_epochs.info
+    ch_names = raw_or_epochs.ch_names
+    bads = info.get("bads", [])
 
     # Find HbO channels only (we'll use HbO for analysis)
-    hbo_channels = [ch for ch in raw.ch_names if "hbo" in ch.lower()]
+    hbo_channels = [ch for ch in ch_names if "hbo" in ch.lower()]
 
     if not hbo_channels:
-        raise ValueError("No HbO channels found in raw data")
+        raise ValueError("No HbO channels found in data")
 
-    # Compute distances
-    distances = {}
-    for ch_name in hbo_channels:
-        if ch_name in ch_pos:
-            ch_position = np.array(ch_pos[ch_name])
-            distance = np.linalg.norm(ch_position - target_pos)
-            distances[ch_name] = distance
-        else:
-            logger.warning(f"Channel {ch_name} has no position information, skipping")
+    logger.info(f"Found {len(hbo_channels)} HbO channels")
 
-    if not distances:
-        raise ValueError("No fNIRS channels with position information found")
+    # Try to get montage positions
+    montage = None
+    if isinstance(raw_or_epochs, mne.io.BaseRaw):
+        montage = raw_or_epochs.get_montage()
+    elif hasattr(raw_or_epochs, "info"):
+        # For Epochs, try to get montage from info
+        try:
+            montage = mne.channels.make_dig_montage(
+                ch_pos={ch: info["chs"][i]["loc"][:3] for i, ch in enumerate(ch_names) 
+                        if not np.allclose(info["chs"][i]["loc"][:3], 0)}
+            )
+        except Exception:
+            montage = None
 
-    # Find channel with minimum distance
-    closest_channel = min(distances, key=distances.get)
-    min_distance = distances[closest_channel]
+    if montage is not None:
+        try:
+            # Get target position from standard 10-20 montage
+            standard_montage = mne.channels.make_standard_montage("standard_1020")
+            target_pos = None
 
-    logger.info(
-        f"Closest fNIRS channel to {target_region}: {closest_channel} "
-        f"(distance: {min_distance*1000:.1f} mm)"
+            positions = standard_montage.get_positions()
+            if "ch_pos" in positions and target_region in positions["ch_pos"]:
+                target_pos = np.array(positions["ch_pos"][target_region])
+
+            if target_pos is not None:
+                # Get fNIRS channel positions
+                fnirs_positions = montage.get_positions()
+                ch_pos = fnirs_positions.get("ch_pos", {})
+
+                # Compute distances
+                distances = {}
+                for ch_name in hbo_channels:
+                    if ch_name in ch_pos:
+                        ch_position = np.array(ch_pos[ch_name])
+                        if not np.allclose(ch_position, 0):
+                            distance = np.linalg.norm(ch_position - target_pos)
+                            distances[ch_name] = distance
+
+                if distances:
+                    # Find channel with minimum distance
+                    closest_channel = min(distances, key=distances.get)
+                    min_distance = distances[closest_channel]
+                    logger.info(
+                        f"Closest fNIRS channel to {target_region}: {closest_channel} "
+                        f"(distance: {min_distance*1000:.1f} mm)"
+                    )
+                    return closest_channel
+        except Exception as e:
+            logger.warning(f"Could not use montage for channel selection: {e}")
+
+    # Fallback: Use naming heuristics or first available channel
+    logger.warning(
+        f"No montage available, using heuristic channel selection for {target_region}"
     )
 
-    # Check if channel is marked as bad
-    if closest_channel in raw.info["bads"]:
-        logger.warning(
-            f"Selected channel {closest_channel} is marked as BAD. "
-            f"Consider using next closest channel."
-        )
-        # Find next closest good channel
-        good_channels = {ch: dist for ch, dist in distances.items() if ch not in raw.info["bads"]}
-        if good_channels:
-            closest_channel = min(good_channels, key=good_channels.get)
-            min_distance = good_channels[closest_channel]
-            logger.info(
-                f"Using next closest good channel: {closest_channel} "
-                f"(distance: {min_distance*1000:.1f} mm)"
-            )
+    # Look for channels with target region name in them
+    target_lower = target_region.lower()
+    matching_channels = [ch for ch in hbo_channels if target_lower in ch.lower()]
+    
+    if matching_channels:
+        # Prefer channels not marked as bad
+        good_matching = [ch for ch in matching_channels if ch not in bads]
+        if good_matching:
+            selected = good_matching[0]
+            logger.info(f"Selected channel by name match: {selected}")
+            return selected
         else:
-            logger.error("All fNIRS channels near target region are marked as BAD")
+            selected = matching_channels[0]
+            logger.warning(f"Selected channel {selected} is marked as bad")
+            return selected
 
-    return closest_channel
+    # Final fallback: first good HbO channel
+    good_hbo = [ch for ch in hbo_channels if ch not in bads]
+    if good_hbo:
+        selected = good_hbo[0]
+        logger.info(f"Selected first available good HbO channel: {selected}")
+        return selected
+
+    # Last resort: first HbO channel even if bad
+    selected = hbo_channels[0]
+    logger.warning(f"All HbO channels are bad, using: {selected}")
+    return selected
 
 
 def extract_hrf(
@@ -663,13 +700,13 @@ def compute_hrf_quality_metrics(
         logger.warning("Baseline std is zero, cannot compute SNR")
 
     results = {
-        "consistency": float(mean_consistency) if not np.isnan(mean_consistency) else None,
-        "snr": float(snr) if not np.isnan(snr) else None,
+        "trial_consistency_r": float(mean_consistency) if not np.isnan(mean_consistency) else 0.0,
+        "snr": float(snr) if not np.isnan(snr) else 0.0,
     }
 
-    logger.info(
-        f"Quality metrics: consistency={results['consistency']:.2f}, SNR={results['snr']:.1f}"
-    )
+    consistency_str = f"{results['trial_consistency_r']:.2f}" if results['trial_consistency_r'] else "N/A"
+    snr_str = f"{results['snr']:.1f}" if results['snr'] else "N/A"
+    logger.info(f"Quality metrics: consistency={consistency_str}, SNR={snr_str}")
 
     # Note: Canonical HRF fit not implemented (optional)
     # Would require fitting double-gamma function to averaged HRF

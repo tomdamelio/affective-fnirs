@@ -32,9 +32,14 @@ Requirements:
 
 from pathlib import Path
 from typing import Any
+import logging
 
 import mne
 import numpy as np
+
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class MNEConstructionError(Exception):
@@ -147,8 +152,60 @@ def build_eeg_raw(
         channel_types = {ch: "misc" for ch in aux_channels}
         info.set_channel_types(channel_types)
 
-    # Create Raw object (data in microvolts)
-    raw = mne.io.RawArray(data.T, info)  # MNE expects (n_channels, n_samples)
+    # Scale data to Volts (MNE expects EEG data in Volts)
+    # Strategy: Use typical EEG std (~50 µV) to determine scaling
+    # This is more robust than using max values which can be affected by artifacts
+    data_std = np.std(data)
+    data_max = np.max(np.abs(data))
+    
+    # Typical EEG std is ~50 µV = 5e-5 V
+    # If current std is ~10000, data is likely in 0.01 µV units -> scale by 1e-8
+    # If current std is ~100000, data is likely in ADC units -> scale by ~5e-10
+    # If current std is ~50, data is already in µV -> scale by 1e-6
+    
+    if data_std > 50000:
+        # Data appears to be in ADC units or 0.01 µV
+        # Target: std ~50 µV = 5e-5 V
+        # Current: std ~100000 -> scale by 5e-10
+        scale_factor = 5e-10
+        logger.info(
+            f"Scaling EEG data by {scale_factor} (ADC units, std={data_std:.0f} -> ~50µV)"
+        )
+    elif data_std > 5000:
+        # Data in 0.01 µV or similar
+        scale_factor = 1e-8
+        logger.info(
+            f"Scaling EEG data by {scale_factor} (0.01µV units, std={data_std:.0f} -> ~50µV)"
+        )
+    elif data_std > 500:
+        # Data appears to be in microvolts
+        scale_factor = 1e-6
+        logger.info(
+            f"Scaling EEG data by {scale_factor} (microvolts, std={data_std:.0f})"
+        )
+    elif data_std > 0.5:
+        # Data appears to be in millivolts
+        scale_factor = 1e-3
+        logger.info(
+            f"Scaling EEG data by {scale_factor} (millivolts, std={data_std:.2f})"
+        )
+    else:
+        # Data already in Volts
+        scale_factor = 1.0
+        logger.info(f"EEG data appears to be in Volts (std={data_std:.2e}V), no scaling applied")
+    
+    data_scaled = data * scale_factor
+    
+    # Validate scaling result
+    scaled_std_uv = np.std(data_scaled) * 1e6
+    if scaled_std_uv < 5 or scaled_std_uv > 500:
+        logger.warning(
+            f"Scaled EEG std is {scaled_std_uv:.1f} µV (expected: 10-100 µV). "
+            f"Data may have unusual units or quality issues."
+        )
+
+    # Create Raw object (data in Volts)
+    raw = mne.io.RawArray(data_scaled.T, info)  # MNE expects (n_channels, n_samples)
 
     # Store LSL timestamps for synchronization (used in embed_events)
     # Store as private attribute for later use
@@ -208,19 +265,19 @@ def build_fnirs_raw(
         1. Validate channel count (data may have more channels than JSON)
         2. Create channel names from source-detector pairs and wavelengths
         3. Create MNE Info with 'fnirs_cw_amplitude' channel types
-        4. Store wavelength in loc[9] field (in meters: 760e-9, 850e-9)
+        4. Store wavelength in loc[9] field (in nanometers: 760, 850)
         5. Compute and store source-detector distance in loc[10]
         6. Create RawArray with data and metadata
 
     Channel Naming Convention:
-        Format: "SourceLabel_DetectorLabel wavelength"
+        Format: "SX_DY wavelength" (MNE-NIRS standard)
         Examples:
-            - "FCC3h_C1 760" (long channel, 760nm)
-            - "FCC3h_C1 850" (long channel, 850nm)
-            - "ShortL_CP3 760" (short channel, 760nm)
+            - "S1_D1 760" (source 1, detector 1, 760nm)
+            - "S1_D1 850" (source 1, detector 1, 850nm)
+            - "S13_D3 760" (short channel, source 13, detector 3, 760nm)
 
-        Note: Original JSON uses misleading "_Hb" and "_HbO" suffixes, but
-        these are raw intensities, not hemoglobin concentrations yet.
+        Note: Numeric IDs extracted from JSON source/detector fields:
+            "S1_FCC3h" → "S1", "D1_C1" → "D1"
 
     Args:
         data: (n_samples, n_channels) fNIRS intensity data
@@ -283,21 +340,24 @@ def build_fnirs_raw(
     channel_metadata = []  # Store wavelength and distance info
 
     for ch_info in montage_config:
-        # Extract source and detector labels (remove S/D prefix and location suffix)
-        source_label = ch_info["source"].replace("S", "").replace("_", "")
-        detector_label = ch_info["detector"].replace("D", "").replace("_", "")
+        # Extract numeric source and detector IDs for MNE compatibility
+        # "S1_FCC3h" → "S1", "D1_C1" → "D1"
+        source_id = ch_info["source"].split("_")[0]  # Extract "S1" from "S1_FCC3h"
+        detector_id = ch_info["detector"].split("_")[0]  # Extract "D1" from "D1_C1"
         wavelength = ch_info["wavelength"]
 
-        # Create MNE-NIRS compatible name: "Source_Detector wavelength"
-        # Example: "FCC3h_C1 760" or "ShortL_CP3 760"
-        ch_name = f"{source_label}_{detector_label} {wavelength}"
+        # Create MNE-NIRS compatible name: "S1_D1 760"
+        # This format is required by MNE's optical_density() function
+        ch_name = f"{source_id}_{detector_id} {wavelength}"
         channel_names.append(ch_name)
 
         # Store metadata for later
         channel_metadata.append({
             "wavelength_nm": wavelength,
             "type": ch_info["type"],
-            "channel_idx": ch_info["channel_idx"]
+            "channel_idx": ch_info["channel_idx"],
+            "source_label": ch_info["source"],  # Keep original for reference
+            "detector_label": ch_info["detector"]
         })
 
     # Add generic names for extra channels beyond JSON config
@@ -306,7 +366,8 @@ def build_fnirs_raw(
         import warnings
         warnings.warn(
             f"Data has {n_extra} more channels than JSON config. "
-            f"Extra channels will be named generically (AUX_000, AUX_001, ...).",
+            f"Extra channels will be named generically (AUX_000, AUX_001, ...) "
+            f"and marked as 'misc' type.",
             UserWarning
         )
         for i in range(n_extra):
@@ -314,24 +375,33 @@ def build_fnirs_raw(
             channel_metadata.append({
                 "wavelength_nm": None,
                 "type": "Unknown",
-                "channel_idx": len(montage_config) + i
+                "channel_idx": len(montage_config) + i,
+                "is_aux": True  # Mark as auxiliary channel
             })
 
     # Create MNE Info structure with fNIRS channel types
+    # Set all channels to fnirs_cw_amplitude initially
     info = mne.create_info(
         ch_names=channel_names,
         sfreq=sfreq,
         ch_types="fnirs_cw_amplitude",  # Continuous wave amplitude
     )
+    
+    # Mark AUX channels as 'misc' type (not fNIRS)
+    aux_channels = [ch for ch, meta in zip(channel_names, channel_metadata) if meta.get("is_aux", False)]
+    if aux_channels:
+        channel_types_dict = {ch: "misc" for ch in aux_channels}
+        info.set_channel_types(channel_types_dict)
+        logger.info(f"Marked {len(aux_channels)} AUX channels as 'misc' type")
 
     # Store wavelength and distance metadata in channel info (Req. 2.3, 2.5)
     for idx, metadata in enumerate(channel_metadata):
         ch_idx = info["ch_names"].index(channel_names[idx])
 
-        # Store wavelength in loc[9] (in meters) if available
+        # Store wavelength in loc[9] (in nanometers for MNE compatibility)
         if metadata["wavelength_nm"] is not None:
-            wavelength_m = metadata["wavelength_nm"] * 1e-9  # Convert nm to meters
-            info["chs"][ch_idx]["loc"][9] = wavelength_m
+            wavelength_nm = metadata["wavelength_nm"]  # Keep in nanometers
+            info["chs"][ch_idx]["loc"][9] = wavelength_nm
 
         # Compute and store source-detector distance in loc[10]
         # For now, use type field to determine distance

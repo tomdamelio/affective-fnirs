@@ -22,13 +22,13 @@ quality:
   short_channel_distance_mm: 15.0  # Short channel classification threshold
 
 # Epoch Configuration
-# EEG: -5 to +20s, fNIRS: -5 to +30s (longer for HRF return)
+# EEG: -3 to +15s, fNIRS: -3 to +15s
 epochs:
-  eeg_tmin_sec: -5.0
-  eeg_tmax_sec: 20.0
-  fnirs_tmin_sec: -5.0
-  fnirs_tmax_sec: 30.0
-  baseline_tmin_sec: -5.0
+  eeg_tmin_sec: -3.0
+  eeg_tmax_sec: 15.0
+  fnirs_tmin_sec: -3.0
+  fnirs_tmax_sec: 15.0
+  baseline_tmin_sec: -3.0
   baseline_tmax_sec: -1.0      # Exclude -1 to 0s to avoid anticipatory ERD
 
 # Analysis Configuration
@@ -40,7 +40,7 @@ analysis:
   beta_band_high_hz: 30.0
   task_window_start_sec: 1.0
   task_window_end_sec: 14.0
-  baseline_window_start_sec: -5.0
+  baseline_window_start_sec: -3.0
   baseline_window_end_sec: -1.0
   hrf_onset_window_start_sec: 2.0
   hrf_onset_window_end_sec: 3.0

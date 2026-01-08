@@ -307,8 +307,8 @@ This implementation plan transforms the design document into actionable coding t
 - [x] 9. Implement EEG analysis module (eeg_analysis.py)
   - [x] 9.1 Implement epoch extraction
     - Implement create_epochs() using mne.Epochs
-    - Time window: -5 to +20s around task markers
-    - Baseline: -5 to -1s (exclude -1 to 0s to avoid anticipatory ERD)
+    - Time window: -3 to +15s around task markers
+    - Baseline: -3 to -1s (exclude -1 to 0s to avoid anticipatory ERD)
     - Reject epochs with excessive artifacts (if not caught by ICA)
     - _Requirements: 5.8_
 
@@ -420,8 +420,8 @@ This implementation plan transforms the design document into actionable coding t
     - **Property 25: Plateau amplitude significantly positive**
     - **Validates: Requirements 6.9-6.11**
 
-- [-] 12. Implement multimodal analysis module (multimodal_analysis.py)
-  - [ ] 12.1 Implement EEG alpha envelope extraction
+- [ ] 12. Implement multimodal analysis module (multimodal_analysis.py)
+  - [x] 12.1 Implement EEG alpha envelope extraction
     - Implement extract_eeg_envelope() for neurovascular coupling
     - Bandpass filter EEG in alpha band (8-12 Hz)
     - Apply Hilbert transform to get analytic signal
@@ -429,13 +429,13 @@ This implementation plan transforms the design document into actionable coding t
     - Low-pass filter envelope (<0.5 Hz) to match hemodynamic frequency
     - _Requirements: 7.1, 7.2_
 
-  - [ ] 12.2 Implement signal resampling for cross-correlation
+  - [x] 12.2 Implement signal resampling for cross-correlation
     - Resample EEG envelope to match fNIRS sampling rate
     - Use scipy.signal.resample or mne.filter.resample
     - Verify time alignment after resampling
     - _Requirements: 7.2_
 
-  - [ ] 12.3 Implement neurovascular coupling computation
+  - [x] 12.3 Implement neurovascular coupling computation
     - Implement compute_neurovascular_coupling() with cross-correlation
     - **INVERT** alpha envelope (alpha decreases during activation → ERD)
     - Compute cross-correlation with HbO time series
@@ -445,7 +445,7 @@ This implementation plan transforms the design document into actionable coding t
     - Return: max_correlation, lag_seconds, lag_negative (bool)
     - _Requirements: 7.3, 7.4, 7.5_
 
-  - [ ] 12.4 Implement coupling visualization
+  - [x] 12.4 Implement coupling visualization
     - Implement plot_coupling_overlay() showing EEG and fNIRS time series
     - Plot inverted alpha envelope and HbO on same axes (dual y-axis)
     - Annotate optimal lag and correlation strength
@@ -460,7 +460,7 @@ This implementation plan transforms the design document into actionable coding t
     - **Validates: Requirements 7.1-7.5**
 
 - [ ] 13. Implement reporting module (reporting.py)
-  - [ ] 13.1 Implement quality report generation (BIDS-compliant)
+  - [x] 13.1 Implement quality report generation (BIDS-compliant)
     - Implement generate_quality_report() with TSV and JSON outputs
     - **TSV file**: sub-{sub}_ses-{ses}_task-{task}_desc-quality_channels.tsv
       - Columns: channel_name, sci, saturation_percent, cardiac_power, cv, is_bad, reason
@@ -468,7 +468,7 @@ This implementation plan transforms the design document into actionable coding t
     - **PNG heatmap**: Spatial quality visualization
     - _Requirements: 3.9, 8.1, 9.2, 9.3, 9.4_
 
-  - [ ] 13.2 Implement HTML validation report
+  - [x] 13.2 Implement HTML validation report
     - Implement generate_validation_report_html() using mne.Report()
     - **Sections**:
       1. Header: subject, session, task, timestamp, software versions
@@ -480,7 +480,7 @@ This implementation plan transforms the design document into actionable coding t
       7. Configuration: pipeline parameters used
     - _Requirements: 8.1-8.6_
 
-  - [ ] 13.3 Implement validation conclusions generator
+  - [x] 13.3 Implement validation conclusions generator
     - Implement generate_validation_conclusions() with pass/fail evaluation
     - **EEG Criteria**:
       - Alpha ERD significant? (p < 0.05, magnitude > 20%)
@@ -497,7 +497,7 @@ This implementation plan transforms the design document into actionable coding t
     - Provide diagnostic suggestions for failures
     - _Requirements: 8.6_
 
-  - [ ] 13.4 Implement numerical results saving
+  - [x] 13.4 Implement numerical results saving
     - Implement save_numerical_results() to JSON
     - Include: all metrics, software versions, random seed, config parameters
     - Enable reproducibility verification
@@ -510,26 +510,26 @@ This implementation plan transforms the design document into actionable coding t
     - **Property 38: Report output is HTML format**
     - **Validates: Requirements 8.1-8.6, 9.4**
 
-- [ ] 14. Checkpoint - Verify reporting functionality
+- [x] 14. Checkpoint - Verify reporting functionality
   - Ensure all tests pass, ask the user if questions arise.
   - Verify BIDS-compliant filenames and paths
   - Check HTML report contains all sections
   - Confirm JSON data dictionaries accompany TSV files
 
-- [ ] 15. Implement BIDS compliance utilities (bids_utils.py)
-  - [ ] 15.1 Implement BIDS path validation
+- [x] 15. Implement BIDS compliance utilities (bids_utils.py)
+  - [x] 15.1 Implement BIDS path validation
     - Implement validate_bids_path() with regex for entity ordering
     - Pattern: sub-XX_ses-XX_task-XX (correct order)
     - Provide specific guidance for incorrect paths
     - _Requirements: 9.5, 9.6_
 
-  - [ ] 15.2 Implement derivative output path generation
+  - [x] 15.2 Implement derivative output path generation
     - Implement generate_derivative_path() following BIDS structure
     - Output to: data/derivatives/validation-pipeline/sub-{sub}/
     - Use BIDS naming: key-value pairs separated by underscores
     - _Requirements: 9.2, 9.3_
 
-  - [ ] 15.3 Implement read-only enforcement for raw data
+  - [x] 15.3 Implement read-only enforcement for raw data
     - Verify all file operations on data/raw/ use read-only mode
     - Raise error if write/append mode attempted on raw data
     - _Requirements: 9.1_
@@ -540,8 +540,8 @@ This implementation plan transforms the design document into actionable coding t
     - **Property 33: BIDS path validation catches incorrect ordering**
     - **Validates: Requirements 9.1-9.6**
 
-- [ ] 16. Implement main pipeline orchestration (pipeline.py)
-  - [ ] 16.1 Create pipeline runner function
+- [x] 16. Implement main pipeline orchestration (pipeline.py)
+  - [x] 16.1 Create pipeline runner function
     - Implement run_validation_pipeline() orchestrating all stages:
       1. Load XDF and JSON metadata
       2. Build MNE objects (EEG and fNIRS separately)
@@ -556,7 +556,7 @@ This implementation plan transforms the design document into actionable coding t
     - Log progress for long-running operations (Req. 11.6)
     - _Requirements: All_
 
-  - [ ] 16.2 Create command-line interface
+  - [x] 16.2 Create command-line interface
     - Implement CLI with argparse
     - Arguments: --xdf-file, --eeg-json, --fnirs-json, --config, --output
     - Validate input paths before execution
@@ -569,8 +569,8 @@ This implementation plan transforms the design document into actionable coding t
     - **Property 36: Dependency versions validated against environment.yml**
     - **Validates: Requirements 10.1-10.5**
 
-- [ ] 17. Integration testing and validation
-  - [ ] 17.1 Test complete pipeline on pilot data
+- [-] 17. Integration testing and validation
+  - [x] 17.1 Test complete pipeline on pilot data
     - **Primary test: sub-002** (complete EEG + fNIRS + Markers data)
       - Run full pipeline and verify all outputs generated
       - Validate EEG preprocessing, fNIRS processing, and multimodal coupling
@@ -603,7 +603,7 @@ This implementation plan transforms the design document into actionable coding t
     - Document any edge cases discovered
     - _Requirements: All_
 
-- [ ] 18. Final checkpoint - Complete pipeline validation
+- [x] 18. Final checkpoint - Complete pipeline validation
   - Ensure all tests pass, ask the user if questions arise.
   - Verify HTML reports generated for both subjects
   - Confirm all validation criteria evaluated correctly

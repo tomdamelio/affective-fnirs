@@ -529,11 +529,13 @@ def detect_erd_ers(
         )
 
     # Compile results
+    # Note: Using alpha_erd_percent for consistency with pipeline expectations
+    # (mu and alpha bands overlap significantly in motor cortex analysis)
     results = {
         "channel": channel,
-        "mu_erd_percent": mu_erd_percent,
-        "mu_p_value": mu_p_value,
-        "mu_significant": mu_significant,
+        "alpha_erd_percent": mu_erd_percent,
+        "alpha_p_value": mu_p_value,
+        "alpha_significant": mu_significant,
         "beta_erd_percent": beta_erd_percent,
         "beta_p_value": beta_p_value,
         "beta_significant": beta_significant,
@@ -847,3 +849,306 @@ def plot_erd_timecourse(
     return fig
 
 
+
+
+def define_motor_roi_clusters() -> dict[str, list[str]]:
+    """
+    Define motor cortex ROI clusters for bilateral analysis.
+
+    Returns motor cortex regions of interest (ROIs) as clusters of electrodes
+    following the 10-20 system. Using clusters instead of single electrodes
+    improves signal-to-noise ratio and spatial robustness.
+
+    Returns:
+        Dictionary mapping ROI names to lists of channel names:
+        - 'left_motor': Left hemisphere motor cortex (C3 + neighbors)
+        - 'right_motor': Right hemisphere motor cortex (C4 + neighbors)
+
+    Notes:
+        - Left motor cortex (C3 cluster): Controls right hand movement
+        - Right motor cortex (C4 cluster): Controls left hand movement
+        - Clusters include central electrode + immediate neighbors
+        - Averaging across cluster reduces noise and improves SNR
+
+    Example:
+        >>> clusters = define_motor_roi_clusters()
+        >>> print(clusters['left_motor'])
+        ['C3', 'C1', 'C5', 'CP3']
+        >>> print(clusters['right_motor'])
+        ['C4', 'C2', 'C6', 'CP4']
+
+    References:
+        - Pfurtscheller & Neuper (1997). Motor imagery activates primary
+          sensorimotor area in humans. Neurosci Lett 239(2-3).
+        - 10-20 system: Jasper (1958). The ten-twenty electrode system.
+
+    Requirements: Enhanced spatial robustness for ERD detection
+    """
+    clusters = {
+        'left_motor': ['C3', 'C1', 'C5', 'CP3'],  # Left hemisphere (right hand)
+        'right_motor': ['C4', 'C2', 'C6', 'CP4'],  # Right hemisphere (left hand)
+    }
+    return clusters
+
+
+def compute_tfr_by_condition(
+    raw: mne.io.Raw,
+    freqs: np.ndarray | None = None,
+    n_cycles: float | np.ndarray = 7,
+    tmin: float = -3.0,
+    tmax: float = 15.0,
+    baseline: tuple[float, float] = (-3.0, -1.0),
+    baseline_mode: str = "percent",
+) -> dict[str, mne.time_frequency.AverageTFR]:
+    """
+    Compute time-frequency representations separately for each condition.
+
+    Separates epochs by condition (LEFT, RIGHT, NOTHING) and computes TFR
+    for each condition independently. This enables condition-specific
+    visualization and statistical comparison.
+
+    Args:
+        raw: Preprocessed EEG Raw object with annotations
+        freqs: Frequencies for TFR (Hz). Default: 3-30 Hz in 1 Hz steps
+        n_cycles: Number of cycles for Morlet wavelets. Default: 7
+            Higher values = better frequency resolution, worse time resolution
+        tmin: Epoch start time relative to event (seconds)
+        tmax: Epoch end time relative to event (seconds)
+        baseline: Baseline correction window (start, end) in seconds
+        baseline_mode: Baseline correction mode ('percent', 'mean', 'logratio')
+
+    Returns:
+        Dictionary mapping condition names to AverageTFR objects:
+        - 'LEFT': TFR for left hand movement trials
+        - 'RIGHT': TFR for right hand movement trials
+        - 'NOTHING': TFR for control/rest trials
+
+    Notes:
+        - Each condition is processed independently
+        - Baseline correction applied per condition
+        - Returns None for conditions with no trials
+        - Useful for comparing ERD patterns across conditions
+
+    Example:
+        >>> tfr_by_cond = compute_tfr_by_condition(raw_eeg)
+        >>> tfr_left = tfr_by_cond['LEFT']
+        >>> tfr_right = tfr_by_cond['RIGHT']
+        >>> # Compare C4 ERD for LEFT vs RIGHT conditions
+
+    References:
+        - Pfurtscheller & Lopes da Silva (1999). Event-related EEG/MEG synchronization.
+
+    Requirements: Condition-specific ERD analysis
+    """
+    if freqs is None:
+        freqs = np.arange(3, 31, 1)
+
+    logger.info("Computing TFR by condition (LEFT, RIGHT, NOTHING)")
+
+    # Get events
+    events, event_id = mne.events_from_annotations(raw)
+
+    # Identify condition event IDs
+    left_ids = {k: v for k, v in event_id.items() if "LEFT" in k.upper()}
+    right_ids = {k: v for k, v in event_id.items() if "RIGHT" in k.upper()}
+    nothing_ids = {k: v for k, v in event_id.items() if "NOTHING" in k.upper()}
+
+    logger.info(f"Event IDs - LEFT: {left_ids}, RIGHT: {right_ids}, NOTHING: {nothing_ids}")
+
+    tfr_by_condition = {}
+
+    # Process each condition
+    for cond_name, cond_ids in [("LEFT", left_ids), ("RIGHT", right_ids), ("NOTHING", nothing_ids)]:
+        if not cond_ids:
+            logger.warning(f"No events found for {cond_name} condition")
+            tfr_by_condition[cond_name] = None
+            continue
+
+        try:
+            # Create epochs for this condition
+            epochs = mne.Epochs(
+                raw,
+                events,
+                event_id=cond_ids,
+                tmin=tmin,
+                tmax=tmax,
+                baseline=None,  # Apply baseline on TFR
+                preload=True,
+                reject=None,
+                verbose=False,
+            )
+            logger.info(f"{cond_name}: {len(epochs)} epochs")
+
+            # Compute TFR
+            tfr = mne.time_frequency.tfr_morlet(
+                epochs,
+                freqs=freqs,
+                n_cycles=n_cycles,
+                return_itc=False,
+                average=True,
+                verbose=False,
+            )
+
+            # Apply baseline correction
+            tfr.apply_baseline(baseline=baseline, mode=baseline_mode)
+
+            tfr_by_condition[cond_name] = tfr
+            logger.info(f"TFR computed for {cond_name}")
+
+        except Exception as e:
+            logger.warning(f"Failed to compute TFR for {cond_name}: {e}")
+            tfr_by_condition[cond_name] = None
+
+    return tfr_by_condition
+
+
+def plot_spectrogram_by_condition(
+    tfr_by_condition: dict[str, mne.time_frequency.AverageTFR],
+    roi_name: str,
+    channels: list[str] | None = None,
+    vmin: float = -50.0,
+    vmax: float = 50.0,
+    cmap: str = "RdBu_r",
+    task_onset: float = 0.0,
+    task_offset: float = 15.0,
+    alpha_band: tuple[float, float] = (8.0, 13.0),
+    beta_band: tuple[float, float] = (13.0, 30.0),
+    figsize: tuple[float, float] = (16, 10),
+) -> plt.Figure:
+    """
+    Plot spectrograms for all conditions (LEFT, RIGHT, NOTHING) in a single figure.
+
+    Creates a 3-row figure showing time-frequency spectrograms for each condition,
+    enabling visual comparison of ERD/ERS patterns across experimental conditions.
+    Can plot either a single channel or average across a cluster of channels (ROI).
+
+    Args:
+        tfr_by_condition: Dictionary mapping condition names to TFR objects
+            Keys: 'LEFT', 'RIGHT', 'NOTHING'
+        roi_name: Name of ROI for title (e.g., 'Left Motor Cortex')
+        channels: List of channel names to average (e.g., ['C3', 'C1', 'C5', 'CP3'])
+            If None, uses first channel in TFR
+        vmin: Minimum colormap value (percent change)
+        vmax: Maximum colormap value (percent change)
+        cmap: Colormap name (default 'RdBu_r' for diverging blue-red)
+        task_onset: Task start time for annotation (seconds)
+        task_offset: Task end time for annotation (seconds)
+        alpha_band: Alpha/Mu frequency band for annotation (Hz)
+        beta_band: Beta frequency band for annotation (Hz)
+        figsize: Figure size (width, height) in inches
+
+    Returns:
+        Matplotlib Figure object with 3 subplots (one per condition)
+
+    Notes:
+        - Top row: LEFT condition
+        - Middle row: RIGHT condition
+        - Bottom row: NOTHING condition
+        - Blue regions = ERD (power decrease)
+        - Red regions = ERS (power increase)
+        - Shared colorbar for direct comparison
+
+    Example:
+        >>> clusters = define_motor_roi_clusters()
+        >>> tfr_by_cond = compute_tfr_by_condition(raw_eeg)
+        >>> fig = plot_spectrogram_by_condition(
+        ...     tfr_by_cond,
+        ...     roi_name='Left Motor Cortex (C3 cluster)',
+        ...     channels=clusters['left_motor']
+        ... )
+
+    References:
+        - Pfurtscheller & Lopes da Silva (1999). Event-related EEG/MEG synchronization.
+
+    Requirements: Condition-specific visualization for ERD analysis
+    """
+    logger.info(f"Plotting spectrograms by condition for {roi_name}")
+
+    conditions = ['LEFT', 'RIGHT', 'NOTHING']
+    fig, axes = plt.subplots(3, 1, figsize=figsize, sharex=True, sharey=True)
+
+    for idx, cond_name in enumerate(conditions):
+        ax = axes[idx]
+        tfr = tfr_by_condition.get(cond_name)
+
+        if tfr is None:
+            ax.text(
+                0.5, 0.5, f"No data for {cond_name}",
+                ha='center', va='center', fontsize=14, color='red'
+            )
+            ax.set_title(f"{cond_name} Condition", fontsize=12, fontweight='bold')
+            continue
+
+        # Average across channels if multiple provided
+        if channels is not None:
+            # Find available channels
+            available_channels = [ch for ch in channels if ch in tfr.ch_names]
+            if not available_channels:
+                logger.warning(f"No channels from {channels} found in TFR for {cond_name}")
+                available_channels = [tfr.ch_names[0]]
+
+            # Average data across channels
+            ch_indices = [tfr.ch_names.index(ch) for ch in available_channels]
+            data = np.mean(tfr.data[ch_indices, :, :], axis=0)
+            channel_label = f"{roi_name} ({len(available_channels)} channels)"
+        else:
+            # Use first channel
+            data = tfr.data[0, :, :]
+            channel_label = tfr.ch_names[0]
+
+        times = tfr.times
+        freqs = tfr.freqs
+
+        # Plot spectrogram
+        im = ax.imshow(
+            data,
+            aspect="auto",
+            origin="lower",
+            extent=[times[0], times[-1], freqs[0], freqs[-1]],
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            interpolation="bilinear",
+        )
+
+        # Annotate task window
+        ax.axvline(task_onset, color="black", linestyle="--", linewidth=1.5, alpha=0.8)
+        ax.axvline(task_offset, color="black", linestyle="--", linewidth=1.5, alpha=0.8)
+
+        # Annotate frequency bands
+        ax.axhline(alpha_band[0], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.axhline(alpha_band[1], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.text(
+            times[-1] * 0.98, np.mean(alpha_band), "Alpha",
+            color="white", fontsize=9, ha="right", va="center",
+            bbox=dict(boxstyle="round", facecolor="black", alpha=0.5),
+        )
+
+        ax.axhline(beta_band[0], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.axhline(beta_band[1], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.text(
+            times[-1] * 0.98, np.mean(beta_band), "Beta",
+            color="white", fontsize=9, ha="right", va="center",
+            bbox=dict(boxstyle="round", facecolor="black", alpha=0.5),
+        )
+
+        # Labels
+        ax.set_ylabel("Frequency (Hz)", fontsize=11)
+        ax.set_title(f"{cond_name} Condition", fontsize=12, fontweight='bold')
+
+        # Only show x-label on bottom plot
+        if idx == 2:
+            ax.set_xlabel("Time (s)", fontsize=11)
+
+    # Add shared colorbar
+    fig.colorbar(im, ax=axes, label="Power change (%)", pad=0.02)
+
+    # Overall title
+    fig.suptitle(
+        f"Time-Frequency Spectrograms by Condition\n{channel_label}",
+        fontsize=14, fontweight='bold', y=0.995
+    )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.99])
+
+    return fig

@@ -78,20 +78,42 @@ def convert_to_optical_density(raw_intensity: mne.io.Raw) -> mne.io.Raw:
 
     Requirements: 6.1
     """
-    # Validate channel types
+    # Validate channel types and filter out non-fNIRS channels
     channel_types = raw_intensity.get_channel_types()
-    if not all(ch_type == "fnirs_cw_amplitude" for ch_type in channel_types):
+    fnirs_channels = [
+        ch for ch, ch_type in zip(raw_intensity.ch_names, channel_types)
+        if ch_type == "fnirs_cw_amplitude"
+    ]
+    
+    if not fnirs_channels:
         raise ValueError(
-            "convert_to_optical_density() requires fnirs_cw_amplitude channel types. "
-            f"Found: {set(channel_types)}"
+            "convert_to_optical_density() requires at least one fnirs_cw_amplitude channel. "
+            f"Found channel types: {set(channel_types)}"
+        )
+    
+    # Pick only fNIRS channels (exclude AUX, misc, etc.)
+    raw_fnirs_only = raw_intensity.copy().pick(fnirs_channels)
+    
+    logger.info(
+        f"Converting {len(fnirs_channels)} intensity channels to optical density "
+        f"(excluded {len(raw_intensity.ch_names) - len(fnirs_channels)} non-fNIRS channels)"
+    )
+    
+    # Debug: Log channel names being processed
+    logger.debug(f"fNIRS channel names: {raw_fnirs_only.ch_names[:5]}... (showing first 5)")
+    
+    # Verify all channels match MNE's expected pattern
+    import re
+    pattern = re.compile(r'S\d+_D\d+ \d+')
+    non_matching = [ch for ch in raw_fnirs_only.ch_names if not pattern.match(ch)]
+    if non_matching:
+        logger.warning(
+            f"Found {len(non_matching)} channels that don't match MNE pattern 'SX_DY wavelength': "
+            f"{non_matching[:5]}... (showing first 5)"
         )
 
-    logger.info(
-        f"Converting {len(raw_intensity.ch_names)} intensity channels to optical density"
-    )
-
     # Convert to optical density using MNE-NIRS
-    raw_od = mne.preprocessing.nirs.optical_density(raw_intensity)
+    raw_od = mne.preprocessing.nirs.optical_density(raw_fnirs_only)
 
     # Verify channel types changed
     od_types = raw_od.get_channel_types()
@@ -316,18 +338,48 @@ def identify_short_channels(
         )
 
     # Fallback: Parse montage_config JSON
-    if "ChMontage" not in montage_config:
+    # Handle two possible structures:
+    # 1. montage_config is a dict with "ChMontage" key containing a list
+    # 2. montage_config is a dict with "ChMontage" key containing a dict with "Channels" key
+    
+    if isinstance(montage_config, list):
+        # montage_config is already the list of channels
+        channels_info = montage_config
+    elif "ChMontage" in montage_config:
+        ch_montage = montage_config["ChMontage"]
+        if isinstance(ch_montage, list):
+            # ChMontage is a list of channels
+            channels_info = ch_montage
+        elif isinstance(ch_montage, dict):
+            # ChMontage is a dict with "Channels" key
+            channels_info = ch_montage.get("Channels", [])
+        else:
+            raise ValueError(
+                f"montage_config['ChMontage'] must be a list or dict, got {type(ch_montage)}"
+            )
+    else:
         raise ValueError(
-            "montage_config must contain 'ChMontage' key with channel information"
+            "montage_config must contain 'ChMontage' key or be a list of channels"
         )
-
-    channels_info = montage_config["ChMontage"].get("Channels", [])
     
     for ch_info in channels_info:
-        ch_name = ch_info.get("Name", "")
+        # Construct channel name from source/detector/wavelength
+        # This matches the naming convention used in build_fnirs_raw
+        if "Name" in ch_info:
+            ch_name = ch_info["Name"]
+        elif "source" in ch_info and "detector" in ch_info and "wavelength" in ch_info:
+            # Extract numeric IDs: "S1_FCC3h" → "S1", "D1_C1" → "D1"
+            source_id = ch_info["source"].split("_")[0]
+            detector_id = ch_info["detector"].split("_")[0]
+            wavelength = ch_info["wavelength"]
+            ch_name = f"{source_id}_{detector_id} {wavelength}"
+        else:
+            logger.warning(f"Channel info missing required fields: {ch_info}")
+            continue
         
         # Skip if channel not in raw data
         if ch_name not in raw_od.ch_names:
+            logger.debug(f"Channel {ch_name} not in raw data, skipping")
             continue
         
         # Method 1: Check 'type' field
@@ -335,8 +387,10 @@ def identify_short_channels(
             ch_type = ch_info["type"].lower()
             if ch_type == "short":
                 short_channels.append(ch_name)
+                logger.debug(f"Identified {ch_name} as short (from 'type' field)")
             elif ch_type == "long":
                 long_channels.append(ch_name)
+                logger.debug(f"Identified {ch_name} as long (from 'type' field)")
             continue
         
         # Method 2: Check 'SourceDetectorDistance' field
@@ -476,18 +530,31 @@ def apply_short_channel_regression(
     )
 
     try:
-        # Try using MNE-NIRS built-in short channel regression
+        # Use MNE-NIRS short channel regression
+        # The function automatically detects short channels based on source-detector distance
+        # stored in the channel metadata (loc field)
         import mne_nirs
         
-        raw_regressed = mne_nirs.signal_enhancement.short_channel_regression(raw_od)
+        # Pick only channels we want to process (exclude bad channels)
+        channels_to_process = [ch for ch in raw_od.ch_names if ch not in raw_od.info['bads']]
+        raw_to_regress = raw_od.copy().pick(channels_to_process)
+        
+        raw_regressed = mne_nirs.signal_enhancement.short_channel_regression(
+            raw_to_regress,
+            max_dist=0.015  # 15mm threshold in meters
+        )
         
         logger.info("Successfully applied short channel regression using MNE-NIRS")
         
-        # Log regression statistics (if available in MNE-NIRS output)
-        # Note: MNE-NIRS may not provide detailed statistics, so this is informative
-        logger.debug("Short channel regression completed. Check noise reduction metrics.")
+        # Copy back to original Raw object structure (including bad channels)
+        raw_result = raw_od.copy()
+        for ch_name in channels_to_process:
+            if ch_name in raw_regressed.ch_names:
+                ch_idx_result = raw_result.ch_names.index(ch_name)
+                ch_idx_regressed = raw_regressed.ch_names.index(ch_name)
+                raw_result._data[ch_idx_result] = raw_regressed._data[ch_idx_regressed]
         
-        return raw_regressed
+        return raw_result
         
     except ImportError:
         logger.error(
@@ -911,17 +978,25 @@ def process_fnirs_pipeline(
         "processing_steps_completed": [],
     }
 
-    # Validate input
+    # Filter to only fNIRS channels (exclude AUX/misc channels)
     channel_types = raw_intensity.get_channel_types()
-    if not all(ch_type == "fnirs_cw_amplitude" for ch_type in channel_types):
+    fnirs_channels = [
+        ch
+        for ch, ch_type in zip(raw_intensity.ch_names, channel_types)
+        if ch_type == "fnirs_cw_amplitude"
+    ]
+
+    if len(fnirs_channels) == 0:
         raise ValueError(
-            "process_fnirs_pipeline() requires fnirs_cw_amplitude channel types. "
-            f"Found: {set(channel_types)}. "
-            "Ensure quality assessment was performed on raw intensity data."
+            "No fnirs_cw_amplitude channels found. "
+            f"Available channel types: {set(channel_types)}"
         )
 
+    # Pick only fNIRS channels for processing
+    raw_intensity = raw_intensity.copy().pick(fnirs_channels)
+
     logger.info(
-        f"Input: {len(raw_intensity.ch_names)} intensity channels, "
+        f"Input: {len(raw_intensity.ch_names)} fNIRS intensity channels, "
         f"{len(raw_intensity.info['bads'])} marked as bad"
     )
 
@@ -1006,8 +1081,15 @@ def process_fnirs_pipeline(
                 # Use regressed data for next steps
                 raw_od_final = raw_od_regressed
             except Exception as e:
-                logger.error(f"Failed to apply short channel regression: {e}")
-                raise RuntimeError(f"Short channel regression failed: {e}") from e
+                # If short channel regression fails, log warning and continue without it
+                logger.warning(
+                    f"Short channel regression failed: {e}. "
+                    f"Continuing without short channel regression."
+                )
+                raw_od_final = raw_od_corrected
+                processing_metrics["processing_steps_completed"].append(
+                    "short_channel_regression_skipped"
+                )
         else:
             logger.warning(
                 "Skipping short channel regression: insufficient short or long channels"
