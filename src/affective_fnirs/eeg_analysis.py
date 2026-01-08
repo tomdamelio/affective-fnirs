@@ -361,6 +361,7 @@ def detect_erd_ers(
     beta_band: tuple[float, float] = (13.0, 30.0),
     task_window: tuple[float, float] = (1.0, 14.0),
     baseline_window: tuple[float, float] = (-5.0, -1.0),
+    beta_rebound_window: tuple[float, float] = (15.0, 20.0),
     alpha_threshold: float = 0.05,
 ) -> dict:
     """
@@ -370,7 +371,7 @@ def detect_erd_ers(
     For motor tasks, expected patterns are:
     - Mu ERD (8-13 Hz): -20% to -40% during movement
     - Beta ERD (13-30 Hz): -30% to -50% during movement
-    - Beta rebound (ERS): +10% to +30% post-movement (16-20s)
+    - Beta rebound (ERS): +10% to +30% post-movement (15-20s)
 
     Algorithm:
     1. Extract power in frequency bands (mu, beta) for selected channel
@@ -388,6 +389,8 @@ def detect_erd_ers(
             Excludes first second (movement initiation) and last second (offset)
         baseline_window: Baseline comparison window (seconds), default (-5, -1)
             Should match TFR baseline correction window
+        beta_rebound_window: Beta rebound analysis window (seconds), default (15, 20)
+            Post-task window for detecting beta rebound (ERS)
         alpha_threshold: Significance threshold for p-value (default 0.05)
 
     Returns:
@@ -410,10 +413,10 @@ def detect_erd_ers(
         - Expected patterns for right-hand tapping (Req. 5.11-5.13):
           * Mu ERD: -20% to -40%
           * Beta ERD: -30% to -50%
-          * Beta rebound: +10% to +30% (16-20s post-task)
+          * Beta rebound: +10% to +30% (15-20s post-task)
 
     Example:
-        >>> results = detect_erd_ers(tfr, channel='C3')
+        >>> results = detect_erd_ers(tfr, channel='C3', beta_rebound_window=(15, 20))
         >>> print(f"Mu ERD: {results['mu_erd_percent']:.1f}% (p={results['mu_p_value']:.3f})")
         >>> # Output: "Mu ERD: -32.5% (p=0.003)" → Significant desynchronization
 
@@ -426,7 +429,8 @@ def detect_erd_ers(
     logger.info(
         f"Detecting ERD/ERS for channel {channel}: "
         f"alpha={alpha_band} Hz, beta={beta_band} Hz, "
-        f"task_window={task_window}s, baseline_window={baseline_window}s"
+        f"task_window={task_window}s, baseline_window={baseline_window}s, "
+        f"beta_rebound_window={beta_rebound_window}s"
     )
 
     # Get channel index
@@ -457,8 +461,8 @@ def detect_erd_ers(
     baseline_time_mask = (times >= baseline_window[0]) & (times <= baseline_window[1])
     baseline_time_indices = np.where(baseline_time_mask)[0]
 
-    # Beta rebound window (post-task: 16-20s)
-    rebound_window = (16.0, 20.0)
+    # Beta rebound window (post-task, from config)
+    rebound_window = beta_rebound_window
     rebound_time_mask = (times >= rebound_window[0]) & (times <= rebound_window[1])
     rebound_time_indices = np.where(rebound_time_mask)[0]
 
@@ -849,6 +853,133 @@ def plot_erd_timecourse(
     return fig
 
 
+def plot_erd_timecourse_bilateral(
+    tfr: mne.time_frequency.AverageTFR,
+    alpha_band: tuple[float, float] = (8.0, 13.0),
+    beta_band: tuple[float, float] = (13.0, 30.0),
+    task_onset: float = 0.0,
+    task_offset: float = 15.0,
+    figsize: tuple[float, float] = (14, 10),
+) -> plt.Figure:
+    """
+    Plot ERD/ERS timecourse for both C3 and C4 (bilateral motor cortex).
+
+    Creates a 2-row figure showing alpha and beta band power changes over time
+    for both left (C3) and right (C4) motor cortex, enabling bilateral comparison.
+
+    Args:
+        tfr: Time-Frequency Representation (baseline-corrected)
+        alpha_band: Alpha/Mu frequency range (Hz), default (8, 13)
+        beta_band: Beta frequency range (Hz), default (13, 30)
+        task_onset: Task start time for annotation (seconds, default 0)
+        task_offset: Task end time for annotation (seconds, default 15)
+        figsize: Figure size (width, height) in inches
+
+    Returns:
+        Matplotlib Figure object with 2 subplots (C3 and C4)
+
+    Notes:
+        - Top row: C3 (left motor cortex, controls right hand)
+        - Bottom row: C4 (right motor cortex, controls left hand)
+        - Enables visual comparison of lateralization patterns
+        - Expected: Contralateral ERD (opposite hemisphere to moving hand)
+
+    Example:
+        >>> fig = plot_erd_timecourse_bilateral(tfr)
+        >>> # Shows C3 and C4 timecourses for bilateral comparison
+        >>> plt.show()
+
+    References:
+        - Pfurtscheller & Neuper (1997). Motor imagery activates primary
+          sensorimotor area in humans. Neurosci Lett 239(2-3).
+
+    Requirements: Bilateral ERD visualization
+    """
+    logger.info("Plotting bilateral ERD timecourse (C3 and C4)")
+
+    # Check if both channels exist
+    if 'C3' not in tfr.ch_names or 'C4' not in tfr.ch_names:
+        raise ValueError(
+            f"C3 and/or C4 not found in TFR. "
+            f"Available channels: {tfr.ch_names}"
+        )
+
+    # Get channel indices
+    c3_idx = tfr.ch_names.index('C3')
+    c4_idx = tfr.ch_names.index('C4')
+
+    times = tfr.times
+    freqs = tfr.freqs
+
+    # Get frequency band masks
+    alpha_mask = (freqs >= alpha_band[0]) & (freqs <= alpha_band[1])
+    beta_mask = (freqs >= beta_band[0]) & (freqs <= beta_band[1])
+
+    # Extract data for both channels
+    c3_data = tfr.data[c3_idx, :, :]
+    c4_data = tfr.data[c4_idx, :, :]
+
+    # Compute band-averaged power
+    c3_alpha = np.mean(c3_data[alpha_mask, :], axis=0)
+    c3_beta = np.mean(c3_data[beta_mask, :], axis=0)
+    c4_alpha = np.mean(c4_data[alpha_mask, :], axis=0)
+    c4_beta = np.mean(c4_data[beta_mask, :], axis=0)
+
+    # Create figure with 2 subplots
+    fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True)
+
+    # Plot C3 (left motor cortex)
+    ax = axes[0]
+    ax.plot(
+        times, c3_alpha,
+        color="blue", linewidth=2,
+        label=f"Alpha/Mu ({alpha_band[0]}-{alpha_band[1]} Hz)"
+    )
+    ax.plot(
+        times, c3_beta,
+        color="red", linewidth=2,
+        label=f"Beta ({beta_band[0]}-{beta_band[1]} Hz)"
+    )
+    ax.axhline(0, color="black", linestyle="-", linewidth=1, alpha=0.5)
+    ax.axvline(task_onset, color="gray", linestyle="--", linewidth=1.5, alpha=0.7)
+    ax.axvline(task_offset, color="gray", linestyle="--", linewidth=1.5, alpha=0.7)
+    ax.axvspan(task_onset, task_offset, alpha=0.1, color="gray", label="Task window")
+    ax.set_ylabel("Power change (%)", fontsize=11)
+    ax.set_title("C3 (Left Motor Cortex - Controls Right Hand)", fontsize=12, fontweight='bold')
+    ax.legend(loc="upper right", fontsize=9)
+    ax.grid(True, alpha=0.3)
+
+    # Plot C4 (right motor cortex)
+    ax = axes[1]
+    ax.plot(
+        times, c4_alpha,
+        color="blue", linewidth=2,
+        label=f"Alpha/Mu ({alpha_band[0]}-{alpha_band[1]} Hz)"
+    )
+    ax.plot(
+        times, c4_beta,
+        color="red", linewidth=2,
+        label=f"Beta ({beta_band[0]}-{beta_band[1]} Hz)"
+    )
+    ax.axhline(0, color="black", linestyle="-", linewidth=1, alpha=0.5)
+    ax.axvline(task_onset, color="gray", linestyle="--", linewidth=1.5, alpha=0.7)
+    ax.axvline(task_offset, color="gray", linestyle="--", linewidth=1.5, alpha=0.7)
+    ax.axvspan(task_onset, task_offset, alpha=0.1, color="gray", label="Task window")
+    ax.set_xlabel("Time (s)", fontsize=11)
+    ax.set_ylabel("Power change (%)", fontsize=11)
+    ax.set_title("C4 (Right Motor Cortex - Controls Left Hand)", fontsize=12, fontweight='bold')
+    ax.legend(loc="upper right", fontsize=9)
+    ax.grid(True, alpha=0.3)
+
+    # Overall title
+    fig.suptitle(
+        "Bilateral Motor Cortex ERD/ERS Time Course\n(Negative = ERD, Positive = ERS)",
+        fontsize=14, fontweight='bold', y=0.995
+    )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.99])
+
+    return fig
 
 
 def define_motor_roi_clusters() -> dict[str, list[str]]:
@@ -869,13 +1000,14 @@ def define_motor_roi_clusters() -> dict[str, list[str]]:
         - Right motor cortex (C4 cluster): Controls left hand movement
         - Clusters include central electrode + immediate neighbors
         - Averaging across cluster reduces noise and improves SNR
+        - Channel selection based on standard 32-channel 10-20 montage
 
     Example:
         >>> clusters = define_motor_roi_clusters()
         >>> print(clusters['left_motor'])
-        ['C3', 'C1', 'C5', 'CP3']
+        ['C3', 'FC1', 'CP1', 'T7']
         >>> print(clusters['right_motor'])
-        ['C4', 'C2', 'C6', 'CP4']
+        ['C4', 'FC2', 'CP2', 'T8']
 
     References:
         - Pfurtscheller & Neuper (1997). Motor imagery activates primary
@@ -884,9 +1016,11 @@ def define_motor_roi_clusters() -> dict[str, list[str]]:
 
     Requirements: Enhanced spatial robustness for ERD detection
     """
+    # Clusters based on standard 32-channel 10-20 montage
+    # C3/C4 + frontocentral + centroparietal + temporal neighbors
     clusters = {
-        'left_motor': ['C3', 'C1', 'C5', 'CP3'],  # Left hemisphere (right hand)
-        'right_motor': ['C4', 'C2', 'C6', 'CP4'],  # Right hemisphere (left hand)
+        'left_motor': ['C3', 'FC1', 'CP1', 'T7'],  # Left hemisphere (right hand)
+        'right_motor': ['C4', 'FC2', 'CP2', 'T8'],  # Right hemisphere (left hand)
     }
     return clusters
 
@@ -1147,6 +1281,230 @@ def plot_spectrogram_by_condition(
     fig.suptitle(
         f"Time-Frequency Spectrograms by Condition\n{channel_label}",
         fontsize=14, fontweight='bold', y=0.995
+    )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.99])
+
+    return fig
+
+
+
+def plot_condition_contrast_spectrograms(
+    tfr_by_condition: dict[str, mne.time_frequency.AverageTFR],
+    motor_clusters: dict[str, list[str]],
+    vmin: float = -30.0,
+    vmax: float = 30.0,
+    cmap: str = "RdBu_r",
+    task_onset: float = 0.0,
+    task_offset: float = 15.0,
+    alpha_band: tuple[float, float] = (8.0, 13.0),
+    beta_band: tuple[float, float] = (13.0, 30.0),
+    figsize: tuple[float, float] = (14, 10),
+) -> plt.Figure:
+    """
+    Plot condition contrast spectrograms showing ERD differences between conditions.
+
+    Creates a 2-row figure showing:
+    - Top: Left motor cluster (C3+) → LEFT - RIGHT (expected: negative = more ERD in LEFT)
+    - Bottom: Right motor cluster (C4+) → RIGHT - LEFT (expected: negative = more ERD in RIGHT)
+
+    This reveals whether the expected contralateral ERD pattern is present by showing
+    where one condition has stronger ERD than the other.
+
+    Args:
+        tfr_by_condition: Dictionary mapping condition names to TFR objects
+            Keys: 'LEFT', 'RIGHT', 'NOTHING'
+        motor_clusters: Dictionary with 'left_motor' and 'right_motor' channel lists
+        vmin: Minimum colormap value (percent change difference)
+        vmax: Maximum colormap value (percent change difference)
+        cmap: Colormap name (default 'RdBu_r' for diverging blue-red)
+            Blue = first condition has more ERD (more negative)
+            Red = second condition has more ERD
+        task_onset: Task start time for annotation (seconds)
+        task_offset: Task end time for annotation (seconds)
+        alpha_band: Alpha/Mu frequency band for annotation (Hz)
+        beta_band: Beta frequency band for annotation (Hz)
+        figsize: Figure size (width, height) in inches
+
+    Returns:
+        Matplotlib Figure object with 2 subplots (contrast maps)
+
+    Notes:
+        - Top plot: LEFT - RIGHT for left motor cluster
+          * Blue = LEFT has more ERD (expected for contralateral control)
+          * Red = RIGHT has more ERD (unexpected)
+        - Bottom plot: RIGHT - LEFT for right motor cluster
+          * Blue = RIGHT has more ERD (expected for contralateral control)
+          * Red = LEFT has more ERD (unexpected)
+        - Contrasts reveal lateralization specificity
+
+    Example:
+        >>> clusters = define_motor_roi_clusters()
+        >>> tfr_by_cond = compute_tfr_by_condition(raw_eeg)
+        >>> fig = plot_condition_contrast_spectrograms(
+        ...     tfr_by_cond, clusters
+        ... )
+
+    References:
+        - Pfurtscheller & Neuper (1997). Motor imagery activates primary
+          sensorimotor area in humans. Neurosci Lett 239(2-3).
+
+    Requirements: Condition contrast visualization for lateralization validation
+    """
+    logger.info("Plotting condition contrast spectrograms")
+
+    # Check if required conditions exist
+    if tfr_by_condition.get('LEFT') is None or tfr_by_condition.get('RIGHT') is None:
+        raise ValueError("Both LEFT and RIGHT conditions required for contrast")
+
+    tfr_left = tfr_by_condition['LEFT']
+    tfr_right = tfr_by_condition['RIGHT']
+
+    times = tfr_left.times
+    freqs = tfr_left.freqs
+
+    # Create figure with 2 subplots
+    fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True, sharey=True)
+
+    # =========================================================================
+    # Top plot: Left motor cluster (C3+) → LEFT - RIGHT
+    # =========================================================================
+    ax = axes[0]
+    
+    # Get left motor cluster channels
+    left_channels = motor_clusters['left_motor']
+    available_left = [ch for ch in left_channels if ch in tfr_left.ch_names]
+    
+    if not available_left:
+        ax.text(0.5, 0.5, "No left motor channels available", 
+                ha='center', va='center', fontsize=14, color='red')
+        ax.set_title("Left Motor Cluster (C3+): LEFT - RIGHT", 
+                     fontsize=12, fontweight='bold')
+    else:
+        # Average across left motor cluster for both conditions
+        left_ch_indices = [tfr_left.ch_names.index(ch) for ch in available_left]
+        
+        left_cond_data = np.mean(tfr_left.data[left_ch_indices, :, :], axis=0)
+        right_cond_data = np.mean(tfr_right.data[left_ch_indices, :, :], axis=0)
+        
+        # Compute contrast: LEFT - RIGHT
+        # Negative values = LEFT has more ERD (expected for left motor during left hand)
+        contrast_data = left_cond_data - right_cond_data
+        
+        # Plot contrast
+        im = ax.imshow(
+            contrast_data,
+            aspect="auto",
+            origin="lower",
+            extent=[times[0], times[-1], freqs[0], freqs[-1]],
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            interpolation="bilinear",
+        )
+        
+        # Annotate task window
+        ax.axvline(task_onset, color="black", linestyle="--", linewidth=1.5, alpha=0.8)
+        ax.axvline(task_offset, color="black", linestyle="--", linewidth=1.5, alpha=0.8)
+        
+        # Annotate frequency bands
+        ax.axhline(alpha_band[0], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.axhline(alpha_band[1], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.text(
+            times[-1] * 0.98, np.mean(alpha_band), "Alpha",
+            color="white", fontsize=9, ha="right", va="center",
+            bbox=dict(boxstyle="round", facecolor="black", alpha=0.5),
+        )
+        
+        ax.axhline(beta_band[0], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.axhline(beta_band[1], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.text(
+            times[-1] * 0.98, np.mean(beta_band), "Beta",
+            color="white", fontsize=9, ha="right", va="center",
+            bbox=dict(boxstyle="round", facecolor="black", alpha=0.5),
+        )
+        
+        ax.set_ylabel("Frequency (Hz)", fontsize=11)
+        ax.set_title(
+            f"Left Motor Cluster ({', '.join(available_left)}): LEFT - RIGHT\n"
+            f"Blue = LEFT has more ERD (expected), Red = RIGHT has more ERD",
+            fontsize=11, fontweight='bold'
+        )
+
+    # =========================================================================
+    # Bottom plot: Right motor cluster (C4+) → RIGHT - LEFT
+    # =========================================================================
+    ax = axes[1]
+    
+    # Get right motor cluster channels
+    right_channels = motor_clusters['right_motor']
+    available_right = [ch for ch in right_channels if ch in tfr_right.ch_names]
+    
+    if not available_right:
+        ax.text(0.5, 0.5, "No right motor channels available",
+                ha='center', va='center', fontsize=14, color='red')
+        ax.set_title("Right Motor Cluster (C4+): RIGHT - LEFT",
+                     fontsize=12, fontweight='bold')
+    else:
+        # Average across right motor cluster for both conditions
+        right_ch_indices = [tfr_right.ch_names.index(ch) for ch in available_right]
+        
+        left_cond_data = np.mean(tfr_left.data[right_ch_indices, :, :], axis=0)
+        right_cond_data = np.mean(tfr_right.data[right_ch_indices, :, :], axis=0)
+        
+        # Compute contrast: RIGHT - LEFT
+        # Negative values = RIGHT has more ERD (expected for right motor during right hand)
+        contrast_data = right_cond_data - left_cond_data
+        
+        # Plot contrast
+        im = ax.imshow(
+            contrast_data,
+            aspect="auto",
+            origin="lower",
+            extent=[times[0], times[-1], freqs[0], freqs[-1]],
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            interpolation="bilinear",
+        )
+        
+        # Annotate task window
+        ax.axvline(task_onset, color="black", linestyle="--", linewidth=1.5, alpha=0.8)
+        ax.axvline(task_offset, color="black", linestyle="--", linewidth=1.5, alpha=0.8)
+        
+        # Annotate frequency bands
+        ax.axhline(alpha_band[0], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.axhline(alpha_band[1], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.text(
+            times[-1] * 0.98, np.mean(alpha_band), "Alpha",
+            color="white", fontsize=9, ha="right", va="center",
+            bbox=dict(boxstyle="round", facecolor="black", alpha=0.5),
+        )
+        
+        ax.axhline(beta_band[0], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.axhline(beta_band[1], color="white", linestyle=":", linewidth=1, alpha=0.6)
+        ax.text(
+            times[-1] * 0.98, np.mean(beta_band), "Beta",
+            color="white", fontsize=9, ha="right", va="center",
+            bbox=dict(boxstyle="round", facecolor="black", alpha=0.5),
+        )
+        
+        ax.set_xlabel("Time (s)", fontsize=11)
+        ax.set_ylabel("Frequency (Hz)", fontsize=11)
+        ax.set_title(
+            f"Right Motor Cluster ({', '.join(available_right)}): RIGHT - LEFT\n"
+            f"Blue = RIGHT has more ERD (expected), Red = LEFT has more ERD",
+            fontsize=11, fontweight='bold'
+        )
+
+    # Add shared colorbar
+    fig.colorbar(im, ax=axes, label="Power change difference (%)", pad=0.02)
+
+    # Overall title
+    fig.suptitle(
+        "Condition Contrast Spectrograms: Lateralization Specificity\n"
+        "(Blue = Expected contralateral ERD pattern)",
+        fontsize=13, fontweight='bold', y=0.995
     )
 
     plt.tight_layout(rect=[0, 0, 1, 0.99])

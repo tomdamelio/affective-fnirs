@@ -21,13 +21,13 @@ quality:
   psp_threshold: 0.1           # Peak Spectral Power minimum
   short_channel_distance_mm: 15.0  # Short channel classification threshold
 
-# Epoch Configuration
-# EEG: -3 to +15s, fNIRS: -3 to +15s
+# Epoch Configuration - Extended to 20s to capture beta rebound
+# EEG: -3 to +20s, fNIRS: -3 to +20s
 epochs:
   eeg_tmin_sec: -3.0
-  eeg_tmax_sec: 15.0
+  eeg_tmax_sec: 20.0           # Extended from 15s to capture beta rebound (15-20s)
   fnirs_tmin_sec: -3.0
-  fnirs_tmax_sec: 15.0
+  fnirs_tmax_sec: 20.0         # Extended from 15s for consistency
   baseline_tmin_sec: -3.0
   baseline_tmax_sec: -1.0      # Exclude -1 to 0s to avoid anticipatory ERD
 
@@ -39,13 +39,15 @@ analysis:
   beta_band_low_hz: 13.0
   beta_band_high_hz: 30.0
   task_window_start_sec: 1.0
-  task_window_end_sec: 14.0
+  task_window_end_sec: 14.0    # Task ends at 15s, analyze up to 14s
   baseline_window_start_sec: -3.0
   baseline_window_end_sec: -1.0
   hrf_onset_window_start_sec: 2.0
   hrf_onset_window_end_sec: 3.0
   hrf_peak_window_start_sec: 4.0
   hrf_peak_window_end_sec: 8.0
+  beta_rebound_window_start_sec: 15.0  # Beta rebound after task ends
+  beta_rebound_window_end_sec: 20.0
   dpf: 6.0                     # Differential Pathlength Factor
 
 # ICA Configuration for EEG Artifact Removal

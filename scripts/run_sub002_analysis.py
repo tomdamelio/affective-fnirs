@@ -5,6 +5,7 @@ This script executes the full multimodal EEG + fNIRS validation pipeline
 and prints a summary of results.
 """
 
+import numpy as np
 from pathlib import Path
 
 from affective_fnirs.config import PipelineConfig
@@ -49,11 +50,27 @@ def main():
     print(f"Mean SCI: {results.quality_report.mean_sci:.3f}")
     print(f"Mean CV: {results.quality_report.mean_cv:.2f}%")
     print()
-    print("--- EEG ERD/ERS ---")
-    print(f"Channel: {results.erd_metrics.channel}")
-    print(f"Alpha ERD: {results.erd_metrics.alpha_erd_percent:.2f}%")
-    print(f"Beta ERD: {results.erd_metrics.beta_erd_percent:.2f}%")
-    print(f"Beta Rebound: {results.erd_metrics.beta_rebound_percent:.2f}%")
+    print("--- EEG ERD/ERS (All Conditions Combined) ---")
+    print(f"C3 (Left Motor Cortex):")
+    print(f"  Alpha ERD: {results.erd_metrics.alpha_erd_percent:.2f}%")
+    print(f"  Beta ERD: {results.erd_metrics.beta_erd_percent:.2f}%")
+    if not np.isnan(results.erd_metrics.beta_rebound_percent):
+        print(f"  Beta Rebound (15-20s): {results.erd_metrics.beta_rebound_percent:.2f}%")
+    else:
+        print(f"  Beta Rebound: N/A (check epoch range)")
+    
+    if results.erd_metrics_c4 is not None:
+        print(f"C4 (Right Motor Cortex):")
+        print(f"  Alpha ERD: {results.erd_metrics_c4.alpha_erd_percent:.2f}%")
+        print(f"  Beta ERD: {results.erd_metrics_c4.beta_erd_percent:.2f}%")
+        if not np.isnan(results.erd_metrics_c4.beta_rebound_percent):
+            print(f"  Beta Rebound (15-20s): {results.erd_metrics_c4.beta_rebound_percent:.2f}%")
+        else:
+            print(f"  Beta Rebound: N/A (check epoch range)")
+    
+    print()
+    print("NOTE: Values above are near-zero because they average LEFT + RIGHT + NOTHING.")
+    print("      See Lateralization Analysis below for condition-specific ERD patterns.")
     print()
     
     # Lateralization Analysis Results

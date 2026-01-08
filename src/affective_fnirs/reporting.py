@@ -150,6 +150,7 @@ class ValidationResults:
     hrf_validation: HRFValidation
     coupling_metrics: CouplingMetrics
     lateralization_metrics: LateralizationMetrics | None = None
+    erd_metrics_c4: ERDMetrics | None = None  # C4 ERD metrics
 
 
 def generate_quality_report(
@@ -505,17 +506,20 @@ def generate_validation_report_html(
     if "eeg_spectrogram" in figures:
         report.add_figure(
             figures["eeg_spectrogram"],
-            title="EEG Time-Frequency Spectrogram (All Conditions)",
-            caption=f"Motor cortex ({validation_results.erd_metrics.channel}) showing ERD/ERS patterns. "
-            f"Alpha ERD: {validation_results.erd_metrics.alpha_erd_percent:.1f}%, "
-            f"Beta ERD: {validation_results.erd_metrics.beta_erd_percent:.1f}%",
+            title="EEG Condition Contrast Spectrograms",
+            caption="Lateralization specificity revealed through condition contrasts. "
+            "Top: Left motor cluster (C3+) showing LEFT - RIGHT (blue = LEFT has more ERD, expected for right hand movement). "
+            "Bottom: Right motor cluster (C4+) showing RIGHT - LEFT (blue = RIGHT has more ERD, expected for left hand movement). "
+            "Blue regions indicate expected contralateral ERD patterns.",
         )
 
     if "erd_timecourse" in figures:
         report.add_figure(
             figures["erd_timecourse"],
-            title="ERD/ERS Time Course (All Conditions)",
-            caption="Alpha and beta band power changes over time. Negative values indicate ERD (power decrease).",
+            title="ERD/ERS Time Course - Bilateral (C3 and C4)",
+            caption="Alpha and beta band power changes over time for both motor cortices. "
+            "Top: C3 (left motor cortex, controls right hand). Bottom: C4 (right motor cortex, controls left hand). "
+            "Negative values indicate ERD (power decrease), positive values indicate ERS (power increase).",
         )
 
     # Section 3.5: EEG Analysis by Condition

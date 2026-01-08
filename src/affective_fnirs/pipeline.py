@@ -44,7 +44,9 @@ from affective_fnirs.eeg_analysis import (
     create_epochs,
     define_motor_roi_clusters,
     detect_erd_ers,
+    plot_condition_contrast_spectrograms,
     plot_erd_timecourse,
+    plot_erd_timecourse_bilateral,
     plot_eeg_spectrogram,
     plot_spectrogram_by_condition,
     select_motor_channel,
@@ -325,6 +327,7 @@ def run_validation_pipeline(
         event_mapping = {
             "LEFT": 1,
             "RIGHT": 2,
+            "NOTHING": 3,
             "task_start": 10,
             "task_end": 11,
         }
@@ -556,11 +559,13 @@ def run_validation_pipeline(
         )
         logger.info("TFR computation complete")
 
-        # Detect ERD/ERS (all conditions combined)
-        logger.info("Detecting ERD/ERS patterns (all conditions)...")
-        erd_results = detect_erd_ers(
+        # Detect ERD/ERS for both C3 and C4
+        logger.info("Detecting ERD/ERS patterns for C3 and C4...")
+        
+        # C3 (left motor cortex)
+        erd_results_c3 = detect_erd_ers(
             tfr,
-            motor_channel,
+            "C3",
             alpha_band=(config.analysis.alpha_band_low_hz, config.analysis.alpha_band_high_hz),
             beta_band=(config.analysis.beta_band_low_hz, config.analysis.beta_band_high_hz),
             task_window=(
@@ -571,31 +576,74 @@ def run_validation_pipeline(
                 config.analysis.baseline_window_start_sec,
                 config.analysis.baseline_window_end_sec,
             ),
+            beta_rebound_window=(
+                config.analysis.beta_rebound_window_start_sec,
+                config.analysis.beta_rebound_window_end_sec,
+            ),
+        )
+        
+        # C4 (right motor cortex)
+        erd_results_c4 = detect_erd_ers(
+            tfr,
+            "C4",
+            alpha_band=(config.analysis.alpha_band_low_hz, config.analysis.alpha_band_high_hz),
+            beta_band=(config.analysis.beta_band_low_hz, config.analysis.beta_band_high_hz),
+            task_window=(
+                config.analysis.task_window_start_sec,
+                config.analysis.task_window_end_sec,
+            ),
+            baseline_window=(
+                config.analysis.baseline_window_start_sec,
+                config.analysis.baseline_window_end_sec,
+            ),
+            beta_rebound_window=(
+                config.analysis.beta_rebound_window_start_sec,
+                config.analysis.beta_rebound_window_end_sec,
+            ),
+        )
+        
+        logger.info(
+            f"C3 - Alpha ERD: {erd_results_c3['alpha_erd_percent']:.1f}%, Beta ERD: {erd_results_c3['beta_erd_percent']:.1f}%"
         )
         logger.info(
-            f"Alpha ERD: {erd_results['alpha_erd_percent']:.1f}% (p={erd_results['alpha_p_value']:.4f})"
-        )
-        logger.info(
-            f"Beta ERD: {erd_results['beta_erd_percent']:.1f}% (p={erd_results['beta_p_value']:.4f})"
+            f"C4 - Alpha ERD: {erd_results_c4['alpha_erd_percent']:.1f}%, Beta ERD: {erd_results_c4['beta_erd_percent']:.1f}%"
         )
 
-        # Create ERD metrics dataclass
+        # Create ERD metrics dataclass (keep C3 as primary for backward compatibility)
         erd_metrics = ERDMetrics(
             channel=motor_channel,
-            alpha_erd_percent=erd_results["alpha_erd_percent"],
-            alpha_p_value=erd_results["alpha_p_value"],
-            alpha_significant=erd_results["alpha_significant"],
-            beta_erd_percent=erd_results["beta_erd_percent"],
-            beta_p_value=erd_results["beta_p_value"],
-            beta_significant=erd_results["beta_significant"],
-            beta_rebound_percent=erd_results.get("beta_rebound_percent", 0.0),
-            beta_rebound_observed=erd_results.get("beta_rebound_observed", False),
+            alpha_erd_percent=erd_results_c3["alpha_erd_percent"],
+            alpha_p_value=erd_results_c3["alpha_p_value"],
+            alpha_significant=erd_results_c3["alpha_significant"],
+            beta_erd_percent=erd_results_c3["beta_erd_percent"],
+            beta_p_value=erd_results_c3["beta_p_value"],
+            beta_significant=erd_results_c3["beta_significant"],
+            beta_rebound_percent=erd_results_c3.get("beta_rebound_percent", np.nan),
+            beta_rebound_observed=erd_results_c3.get("beta_rebound_observed", False),
+        )
+        
+        # Store C4 results separately for reporting
+        erd_metrics_c4 = ERDMetrics(
+            channel="C4",
+            alpha_erd_percent=erd_results_c4["alpha_erd_percent"],
+            alpha_p_value=erd_results_c4["alpha_p_value"],
+            alpha_significant=erd_results_c4["alpha_significant"],
+            beta_erd_percent=erd_results_c4["beta_erd_percent"],
+            beta_p_value=erd_results_c4["beta_p_value"],
+            beta_significant=erd_results_c4["beta_significant"],
+            beta_rebound_percent=erd_results_c4.get("beta_rebound_percent", np.nan),
+            beta_rebound_observed=erd_results_c4.get("beta_rebound_observed", False),
         )
 
-        # Generate standard EEG visualizations (all conditions combined)
-        logger.info("Generating standard EEG visualizations...")
-        eeg_spectrogram = plot_eeg_spectrogram(tfr, motor_channel)
-        erd_timecourse = plot_erd_timecourse(tfr, motor_channel)
+        # Generate bilateral ERD timecourse (C3 and C4)
+        logger.info("Generating bilateral ERD timecourse (C3 and C4)...")
+        erd_timecourse = plot_erd_timecourse_bilateral(
+            tfr,
+            alpha_band=(config.analysis.alpha_band_low_hz, config.analysis.alpha_band_high_hz),
+            beta_band=(config.analysis.beta_band_low_hz, config.analysis.beta_band_high_hz),
+            task_onset=0.0,
+            task_offset=config.analysis.task_window_end_sec,
+        )
 
         # Compute TFR by condition for detailed analysis
         logger.info("Computing TFR by condition (LEFT, RIGHT, NOTHING)...")
@@ -613,7 +661,20 @@ def run_validation_pipeline(
         motor_clusters = define_motor_roi_clusters()
         logger.info(f"Motor ROI clusters defined: {list(motor_clusters.keys())}")
 
-        # Generate spectrograms by condition for both hemispheres
+        # Generate condition contrast spectrograms (LEFT-RIGHT for left cluster, RIGHT-LEFT for right cluster)
+        logger.info("Generating condition contrast spectrograms...")
+        eeg_spectrogram = plot_condition_contrast_spectrograms(
+            tfr_by_condition,
+            motor_clusters,
+            vmin=-50.0,
+            vmax=50.0,
+            task_onset=0.0,
+            task_offset=config.analysis.task_window_end_sec,
+            alpha_band=(config.analysis.alpha_band_low_hz, config.analysis.alpha_band_high_hz),
+            beta_band=(config.analysis.beta_band_low_hz, config.analysis.beta_band_high_hz),
+        )
+
+        # Generate spectrograms by condition for both hemispheres (for detailed inspection)
         logger.info("Generating spectrograms by condition for left motor cortex...")
         eeg_spectrogram_left_by_condition = plot_spectrogram_by_condition(
             tfr_by_condition,
@@ -640,7 +701,7 @@ def run_validation_pipeline(
             beta_band=(config.analysis.beta_band_low_hz, config.analysis.beta_band_high_hz),
         )
 
-        logger.info("EEG analysis complete with condition-specific spectrograms")
+        logger.info("EEG analysis complete with condition contrast and detailed spectrograms")
 
     except Exception as e:
         raise PipelineError(f"Stage 6 failed (EEG Analysis): {e}") from e
@@ -952,6 +1013,7 @@ def run_validation_pipeline(
             config=config.to_dict(),
             quality_report=quality_report,
             erd_metrics=erd_metrics,
+            erd_metrics_c4=erd_metrics_c4,
             hrf_validation=hrf_validation,
             coupling_metrics=coupling_metrics,
             lateralization_metrics=lateralization_metrics,

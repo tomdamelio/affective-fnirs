@@ -155,6 +155,8 @@ class AnalysisConfig:
         task_window_end_sec: Task analysis window end (seconds post-stimulus)
         baseline_window_start_sec: Baseline window start for comparison (seconds)
         baseline_window_end_sec: Baseline window end for comparison (seconds)
+        beta_rebound_window_start_sec: Beta rebound window start (seconds post-task)
+        beta_rebound_window_end_sec: Beta rebound window end (seconds post-task)
         hrf_onset_window_start_sec: Expected HRF onset window start (seconds)
         hrf_onset_window_end_sec: Expected HRF onset window end (seconds)
         hrf_peak_window_start_sec: Expected HRF peak window start (seconds)
@@ -170,6 +172,8 @@ class AnalysisConfig:
     task_window_end_sec: float = 14.0
     baseline_window_start_sec: float = -5.0
     baseline_window_end_sec: float = -1.0
+    beta_rebound_window_start_sec: float = 15.0
+    beta_rebound_window_end_sec: float = 20.0
     hrf_onset_window_start_sec: float = 2.0
     hrf_onset_window_end_sec: float = 3.0
     hrf_peak_window_start_sec: float = 4.0
@@ -192,6 +196,11 @@ class AnalysisConfig:
             raise ValueError(
                 f"Task window start ({self.task_window_start_sec}) must be < end "
                 f"({self.task_window_end_sec})"
+            )
+        if self.beta_rebound_window_start_sec >= self.beta_rebound_window_end_sec:
+            raise ValueError(
+                f"Beta rebound window start ({self.beta_rebound_window_start_sec}) must be < end "
+                f"({self.beta_rebound_window_end_sec})"
             )
         if self.dpf <= 0:
             raise ValueError(f"DPF must be positive, got {self.dpf}")
