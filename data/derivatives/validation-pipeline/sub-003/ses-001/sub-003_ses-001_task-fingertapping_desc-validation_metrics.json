@@ -1,0 +1,582 @@
+{
+  "subject_id": "003",
+  "session_id": "001",
+  "task": "fingertapping",
+  "timestamp": "2026-01-12T10:44:27.128131",
+  "software_versions": {
+    "mne": "1.9.0",
+    "numpy": "2.2.6",
+    "python": "3.11.14"
+  },
+  "config": {
+    "filters": {
+      "eeg_bandpass_low_hz": 1.0,
+      "eeg_bandpass_high_hz": 40.0,
+      "fnirs_bandpass_low_hz": 0.01,
+      "fnirs_bandpass_high_hz": 0.5,
+      "cardiac_band_low_hz": 0.5,
+      "cardiac_band_high_hz": 2.5
+    },
+    "quality": {
+      "sci_threshold": 0.75,
+      "cv_threshold_percent": 15.0,
+      "saturation_percent": 5.0,
+      "psp_threshold": 0.1,
+      "short_channel_distance_mm": 15.0
+    },
+    "epochs": {
+      "eeg_tmin_sec": -1.0,
+      "eeg_tmax_sec": 5.0,
+      "fnirs_tmin_sec": -3.0,
+      "fnirs_tmax_sec": 10.0,
+      "baseline_tmin_sec": -1.0,
+      "baseline_tmax_sec": 0.0
+    },
+    "analysis": {
+      "alpha_band_low_hz": 8.0,
+      "alpha_band_high_hz": 13.0,
+      "beta_band_low_hz": 13.0,
+      "beta_band_high_hz": 30.0,
+      "task_window_start_sec": 0.0,
+      "task_window_end_sec": 3.0,
+      "baseline_window_start_sec": -1.0,
+      "baseline_window_end_sec": 0.0,
+      "beta_rebound_window_start_sec": 3.5,
+      "beta_rebound_window_end_sec": 5.0,
+      "hrf_onset_window_start_sec": 0.0,
+      "hrf_onset_window_end_sec": 4.0,
+      "hrf_peak_window_start_sec": 4.0,
+      "hrf_peak_window_end_sec": 10.0,
+      "dpf": 6.0
+    },
+    "ica": {
+      "enabled": false,
+      "n_components": 15,
+      "random_state": 42,
+      "max_iter": 200,
+      "eog_threshold": 0.9,
+      "emg_threshold": 2.5,
+      "min_components": 15,
+      "max_bad_channels_for_skip": 3
+    },
+    "motion_correction": {
+      "method": "tddr",
+      "wavelet_name": "db4",
+      "wavelet_threshold": 0.1
+    },
+    "data_root": "data\\raw",
+    "output_root": "data\\derivatives\\validation-pipeline",
+    "random_seed": 42
+  },
+  "quality_report": {
+    "channels": [
+      {
+        "channel_name": "S1_D1 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.0080944064692143,
+        "cv": 0.12912246311394215,
+        "is_bad": true,
+        "reason": "Low SCI (0.37 < 0.75)"
+      },
+      {
+        "channel_name": "S1_D1 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1647031848586744,
+        "cv": 0.18641871415280437,
+        "is_bad": true,
+        "reason": "Low SCI (0.37 < 0.75)"
+      },
+      {
+        "channel_name": "S2_D2 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.7293803602941031,
+        "cv": 0.12123244617618956,
+        "is_bad": true,
+        "reason": "Low SCI (0.07 < 0.75)"
+      },
+      {
+        "channel_name": "S2_D2 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.8061178889524577,
+        "cv": 0.13052788264451887,
+        "is_bad": true,
+        "reason": "Low SCI (0.07 < 0.75)"
+      },
+      {
+        "channel_name": "S7_D1 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1044807906439549,
+        "cv": 0.11811482990081543,
+        "is_bad": true,
+        "reason": "Low SCI (0.35 < 0.75)"
+      },
+      {
+        "channel_name": "S7_D1 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.9889973258724314,
+        "cv": 0.1637960174503649,
+        "is_bad": true,
+        "reason": "Low SCI (0.35 < 0.75)"
+      },
+      {
+        "channel_name": "S8_D2 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.7114529664984253,
+        "cv": 0.11888893458865533,
+        "is_bad": true,
+        "reason": "Low SCI (0.25 < 0.75)"
+      },
+      {
+        "channel_name": "S8_D2 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2685823222479253,
+        "cv": 0.22177595776484596,
+        "is_bad": true,
+        "reason": "Low SCI (0.25 < 0.75)"
+      },
+      {
+        "channel_name": "S5_D3 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.0811072341438557,
+        "cv": 0.27576148692538854,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S5_D3 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.3118733437608525,
+        "cv": 0.9456387183095052,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S6_D4 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1466419038133282,
+        "cv": 0.21551984300453114,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S6_D4 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.3052573778903702,
+        "cv": 0.995335630861286,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S7_D3 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.3251366677512915,
+        "cv": 0.9777243796964035,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S7_D3 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.3420025330491978,
+        "cv": 1.6146908062451104,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S8_D4 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.8479090357277486,
+        "cv": 0.1301690141922427,
+        "is_bad": true,
+        "reason": "Low SCI (0.44 < 0.75)"
+      },
+      {
+        "channel_name": "S8_D4 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.3099747106824733,
+        "cv": 0.5964165689119953,
+        "is_bad": true,
+        "reason": "Low SCI (0.44 < 0.75)"
+      },
+      {
+        "channel_name": "S3_D5 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.284927787558517,
+        "cv": 0.7497908697511529,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S3_D5 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.3316872070543364,
+        "cv": 1.5701654768612967,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S4_D6 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.29237340229476,
+        "cv": 0.3433673720255077,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S4_D6 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.3331781551042272,
+        "cv": 1.398310314898933,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S5_D5 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2401955198539476,
+        "cv": 0.9704228054703655,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S5_D5 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2863889472503829,
+        "cv": 1.8094169391997494,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S6_D6 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2461246012080223,
+        "cv": 0.2613007781099983,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S6_D6 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.334343237436792,
+        "cv": 0.78095425484436,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "S1_D7 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.7459459830572484,
+        "cv": 0.3253990794159995,
+        "is_bad": true,
+        "reason": "Low SCI (0.46 < 0.75)"
+      },
+      {
+        "channel_name": "S1_D7 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.0974326968841743,
+        "cv": 0.5424319203922657,
+        "is_bad": true,
+        "reason": "Low SCI (0.46 < 0.75)"
+      },
+      {
+        "channel_name": "S2_D8 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.6914430840937396,
+        "cv": 0.10800530773866505,
+        "is_bad": true,
+        "reason": "Low SCI (0.00 < 0.75)"
+      },
+      {
+        "channel_name": "S2_D8 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.6960518227530943,
+        "cv": 0.10866066396575869,
+        "is_bad": true,
+        "reason": "Low SCI (0.00 < 0.75)"
+      },
+      {
+        "channel_name": "S3_D7 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.5709880196871107,
+        "cv": 0.2597314927296846,
+        "is_bad": true,
+        "reason": "Low SCI (0.52 < 0.75)"
+      },
+      {
+        "channel_name": "S3_D7 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2465566328700655,
+        "cv": 0.6620431498419896,
+        "is_bad": true,
+        "reason": "Low SCI (0.52 < 0.75)"
+      },
+      {
+        "channel_name": "S4_D8 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.8501886548884808,
+        "cv": 0.11971245198984443,
+        "is_bad": true,
+        "reason": "Low SCI (0.46 < 0.75)"
+      },
+      {
+        "channel_name": "S4_D8 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.3467463115519327,
+        "cv": 0.4254884143638452,
+        "is_bad": true,
+        "reason": "Low SCI (0.46 < 0.75)"
+      },
+      {
+        "channel_name": "S13_D3 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.0325460818548469,
+        "cv": 0.5360660761338202,
+        "is_bad": true,
+        "reason": "Low SCI (0.01 < 0.75)"
+      },
+      {
+        "channel_name": "S13_D3 850",
+        "sci": 0.0,
+        "saturation_percent": 100.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": true,
+        "reason": "Low SCI (0.01 < 0.75); High saturation (100.0% > 5.0%); Low cardiac power (0.00 < 0.1)"
+      },
+      {
+        "channel_name": "S14_D4 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.6429906939801853,
+        "cv": 0.5763048007820464,
+        "is_bad": true,
+        "reason": "Low SCI (0.61 < 0.75)"
+      },
+      {
+        "channel_name": "S14_D4 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2823961882124815,
+        "cv": 0.6487553778667857,
+        "is_bad": true,
+        "reason": "Low SCI (0.61 < 0.75)"
+      },
+      {
+        "channel_name": "AUX_000",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "AUX_001",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "AUX_002",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "AUX_003",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "AUX_004",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": "Good"
+      },
+      {
+        "channel_name": "AUX_005",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": "Good"
+      }
+    ],
+    "n_total_channels": 42,
+    "n_bad_channels": 22,
+    "mean_sci": 0.5423146190892735,
+    "mean_saturation": 2.7777777777777777,
+    "mean_cardiac_power": 1.1390060300069627,
+    "mean_cv": 0.531596145564463
+  },
+  "erd_metrics": {
+    "channel": "C3",
+    "alpha_erd_percent": 0.5460102897229693,
+    "alpha_p_value": NaN,
+    "alpha_significant": false,
+    "beta_erd_percent": 0.0954441500833422,
+    "beta_p_value": NaN,
+    "beta_significant": false,
+    "beta_rebound_percent": 0.13664671000423803,
+    "beta_rebound_observed": false
+  },
+  "hrf_validation": {
+    "channel": "S5_D3 hbo",
+    "onset_time_sec": 0.0,
+    "onset_detected": false,
+    "time_to_peak_sec": 0.0,
+    "peak_plausible": false,
+    "plateau_amplitude_um": 0.0,
+    "plateau_p_value": NaN,
+    "plateau_significant": false,
+    "trial_consistency_r": 0.0,
+    "consistency_acceptable": false
+  },
+  "coupling_metrics": {
+    "max_correlation": NaN,
+    "lag_seconds": -64.80839999999999,
+    "eeg_precedes_fnirs": true,
+    "correlation_adequate": false
+  },
+  "experiment_qa": {
+    "eeg_duration_sec": 63.518,
+    "fnirs_duration_sec": 64.80839999999999,
+    "eeg_n_valid_trials": 9,
+    "fnirs_n_valid_trials": 9,
+    "eeg_expected_trials": 36,
+    "fnirs_expected_trials": 36,
+    "eeg_duration_complete": false,
+    "fnirs_duration_complete": false,
+    "trials_match": true,
+    "eeg_channel_quality": [
+      {
+        "channel_name": "C3",
+        "mean_correlation": -0.09905749434015107,
+        "signal_variance": 1.0216792943238297e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "C4",
+        "mean_correlation": -0.11680327639314528,
+        "signal_variance": 9.098112716265365e-15,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F3",
+        "mean_correlation": -0.07884381872519504,
+        "signal_variance": 1.8516538374387573e-15,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F4",
+        "mean_correlation": 0.1078164047923704,
+        "signal_variance": 2.3499539491066054e-09,
+        "quality_status": "fair",
+        "is_bad": false
+      },
+      {
+        "channel_name": "Fp1",
+        "mean_correlation": -0.14359785996837754,
+        "signal_variance": 1.978434797088184e-15,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Fp2",
+        "mean_correlation": -0.19359391761637074,
+        "signal_variance": 1.7001991771595103e-15,
+        "quality_status": "poor",
+        "is_bad": true
+      }
+    ]
+  },
+  "lateralization_metrics": {
+    "left_c3_alpha_erd": 6.967264996856939,
+    "left_c4_alpha_erd": -27.086908438936586,
+    "right_c3_alpha_erd": -17.674871690548837,
+    "right_c4_alpha_erd": -8.627115787206835,
+    "nothing_c3_alpha_erd": 7.075143636109014,
+    "nothing_c4_alpha_erd": 17.54123635301201,
+    "left_c3_beta_erd": 2.3571341085339355,
+    "left_c4_beta_erd": -27.61107531345956,
+    "right_c3_beta_erd": -34.389272343916296,
+    "right_c4_beta_erd": -33.58971055735407,
+    "nothing_c3_beta_erd": 6.24794703269124,
+    "nothing_c4_beta_erd": 23.94585514611156,
+    "left_lateralization_alpha": -34.05417343579352,
+    "right_lateralization_alpha": -9.047755903342003,
+    "left_lateralization_beta": -29.968209421993492,
+    "right_lateralization_beta": -0.7995617865622293,
+    "left_vs_nothing_c4_p": 0.3737905325853523,
+    "right_vs_nothing_c3_p": 0.6985432343870026,
+    "left_contralateral_vs_ipsilateral_p": 0.11500541865399637,
+    "right_contralateral_vs_ipsilateral_p": 0.5720562769268449,
+    "left_shows_contralateral_erd": true,
+    "right_shows_contralateral_erd": true,
+    "lateralization_pattern_valid": true,
+    "n_left_trials": 3,
+    "n_right_trials": 3,
+    "n_nothing_trials": 3
+  },
+  "erd_metrics_c4": {
+    "channel": "C4",
+    "alpha_erd_percent": 0.5758821178988843,
+    "alpha_p_value": NaN,
+    "alpha_significant": false,
+    "beta_erd_percent": 0.14670515330270772,
+    "beta_p_value": NaN,
+    "beta_significant": false,
+    "beta_rebound_percent": 0.16690775015962478,
+    "beta_rebound_observed": false
+  }
+}

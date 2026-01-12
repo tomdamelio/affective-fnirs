@@ -2,7 +2,7 @@
   "subject_id": "002",
   "session_id": "001",
   "task": "fingertapping",
-  "timestamp": "2026-01-08T13:30:04.116924",
+  "timestamp": "2026-01-12T10:14:39.861552",
   "software_versions": {
     "mne": "1.9.0",
     "numpy": "2.2.6",
@@ -458,13 +458,13 @@
   },
   "erd_metrics": {
     "channel": "C3",
-    "alpha_erd_percent": 0.33893264020229563,
+    "alpha_erd_percent": 0.003555122569991272,
     "alpha_p_value": NaN,
     "alpha_significant": false,
-    "beta_erd_percent": 0.07271933780855697,
+    "beta_erd_percent": -0.012614543405978423,
     "beta_p_value": NaN,
     "beta_significant": false,
-    "beta_rebound_percent": 3.198096599799472,
+    "beta_rebound_percent": 0.04137794430531845,
     "beta_rebound_observed": false
   },
   "hrf_validation": {
@@ -484,6 +484,61 @@
     "lag_seconds": -1328.68828125,
     "eeg_precedes_fnirs": true,
     "correlation_adequate": false
+  },
+  "experiment_qa": {
+    "eeg_duration_sec": 660.088,
+    "fnirs_duration_sec": 1328.68828125,
+    "eeg_n_valid_trials": 21,
+    "fnirs_n_valid_trials": 36,
+    "eeg_expected_trials": 36,
+    "fnirs_expected_trials": 36,
+    "eeg_duration_complete": false,
+    "fnirs_duration_complete": true,
+    "trials_match": false,
+    "eeg_channel_quality": [
+      {
+        "channel_name": "C3",
+        "mean_correlation": -0.019628579238557348,
+        "signal_variance": 5.497457306195145e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "C4",
+        "mean_correlation": -0.019176243359394538,
+        "signal_variance": 3.3894846707773465e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F3",
+        "mean_correlation": -0.019307299925537414,
+        "signal_variance": 4.947411937831795e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F4",
+        "mean_correlation": 0.4029645063220239,
+        "signal_variance": 9.188629040796076e-12,
+        "quality_status": "good",
+        "is_bad": false
+      },
+      {
+        "channel_name": "Fp1",
+        "mean_correlation": 0.507280317163201,
+        "signal_variance": 4.827784424735625e-12,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Fp2",
+        "mean_correlation": 0.5201883253121773,
+        "signal_variance": 7.374323963072458e-12,
+        "quality_status": "poor",
+        "is_bad": true
+      }
+    ]
   },
   "lateralization_metrics": {
     "left_c3_alpha_erd": -27.98618245105984,
@@ -515,13 +570,13 @@
   },
   "erd_metrics_c4": {
     "channel": "C4",
-    "alpha_erd_percent": 0.15689842527808193,
+    "alpha_erd_percent": -0.09262249703971254,
     "alpha_p_value": NaN,
     "alpha_significant": false,
-    "beta_erd_percent": 0.06845985136716003,
+    "beta_erd_percent": 0.01942922269018635,
     "beta_p_value": NaN,
     "beta_significant": false,
-    "beta_rebound_percent": 3.155119010813185,
+    "beta_rebound_percent": 0.10834064838508298,
     "beta_rebound_observed": false
   }
 }

@@ -1,0 +1,27 @@
+{
+  "subject": "sub-006",
+  "session": "ses-001",
+  "task": "fingertapping",
+  "protocol": "short_trials_1s",
+  "eeg": {
+    "duration_sec": 110.52,
+    "n_channels": 55258,
+    "sample_rate_hz": 500.0,
+    "n_samples": 32
+  },
+  "fnirs": {
+    "duration_sec": 110.23,
+    "n_channels": 1123,
+    "sample_rate_hz": 9.81,
+    "n_samples": 42
+  },
+  "markers": {
+    "total": 36,
+    "in_eeg_window": 36,
+    "in_fnirs_window": 36,
+    "left": 12,
+    "right": 12,
+    "nothing": 12
+  },
+  "issues": []
+}

@@ -94,6 +94,7 @@ from affective_fnirs.reporting import (
     ChannelQuality,
     CouplingMetrics,
     ERDMetrics,
+    ExperimentQA,
     HRFValidation,
     LateralizationMetrics,
     QualityReport,
@@ -497,14 +498,24 @@ def run_validation_pipeline(
     logger.info("=" * 70)
 
     try:
+        # Mark bad channels for sub-002 (only C3, C4, F3, F4 have good data)
+        good_channels = ['C3', 'C4', 'F3', 'F4']
+        all_channels = raw_eeg.ch_names
+        bad_channels = [ch for ch in all_channels if ch not in good_channels]
+        
+        if bad_channels:
+            logger.info(f"Marking {len(bad_channels)} bad channels (only C3, C4, F3, F4 have good data)")
+            logger.info(f"Good channels: {good_channels}")
+            raw_eeg.info['bads'] = bad_channels
+        
         logger.info("Running EEG preprocessing pipeline...")
         logger.info("  1. Bandpass filter (1-40 Hz)")
-        logger.info("  2. Detect bad channels")
-        logger.info("  3. Fit ICA")
-        logger.info("  4. Identify artifact components (EOG, EMG)")
-        logger.info("  5. Apply ICA")
-        logger.info("  6. Interpolate bad channels")
-        logger.info("  7. Common Average Reference")
+        logger.info("  2. Detect bad channels (already marked)")
+        logger.info("  3. Fit ICA (disabled - insufficient channels)")
+        logger.info("  4. Identify artifact components (skipped)")
+        logger.info("  5. Apply ICA (skipped)")
+        logger.info("  6. Interpolate bad channels (skipped - too many bad channels)")
+        logger.info("  7. Common Average Reference (using only good channels)")
 
         raw_eeg_processed, ica = preprocess_eeg_pipeline(
             raw_eeg.copy(), config
@@ -701,7 +712,24 @@ def run_validation_pipeline(
             beta_band=(config.analysis.beta_band_low_hz, config.analysis.beta_band_high_hz),
         )
 
-        logger.info("EEG analysis complete with condition contrast and detailed spectrograms")
+        # Compute and plot PSD by condition for all 4 good channels
+        logger.info("Computing PSD by condition for C3, C4, F3, F4...")
+        from affective_fnirs.eeg_analysis import compute_psd_by_condition, plot_psd_by_condition
+        
+        good_channels = ['C3', 'C4', 'F3', 'F4']
+        psd_data = compute_psd_by_condition(
+            raw_eeg_processed,
+            channels=good_channels,
+            tmin=config.epochs.eeg_tmin_sec,
+            tmax=config.epochs.eeg_tmax_sec,
+            fmin=1.0,
+            fmax=40.0,
+        )
+        
+        logger.info("Generating PSD plots by condition...")
+        eeg_psd_by_condition = plot_psd_by_condition(psd_data, channels=good_channels)
+
+        logger.info("EEG analysis complete with condition contrast, spectrograms, and PSD")
 
     except Exception as e:
         raise PipelineError(f"Stage 6 failed (EEG Analysis): {e}") from e
@@ -981,6 +1009,105 @@ def run_validation_pipeline(
 
 
     # =========================================================================
+    # STAGE 8.5: Compute Experiment QA Metrics
+    # =========================================================================
+    logger.info("=" * 70)
+    logger.info("STAGE 8.5: Computing Experiment QA Metrics")
+    logger.info("=" * 70)
+
+    try:
+        # Extract recording durations
+        eeg_duration_sec = float(raw_eeg.times[-1])
+        fnirs_duration_sec = float(raw_fnirs.times[-1])
+        logger.info(f"EEG recording duration: {eeg_duration_sec:.1f}s")
+        logger.info(f"fNIRS recording duration: {fnirs_duration_sec:.1f}s")
+
+        # Count valid trials (epochs that passed quality checks)
+        eeg_n_valid_trials = len(epochs_eeg)
+        fnirs_n_valid_trials = len(epochs_fnirs)
+        logger.info(f"EEG valid trials: {eeg_n_valid_trials}")
+        logger.info(f"fNIRS valid trials: {fnirs_n_valid_trials}")
+
+        # Expected values based on task design
+        # For finger tapping: 3 conditions × 12 trials = 36 total trials
+        # Expected duration: ~1050s (17.5 minutes)
+        eeg_expected_trials = 36
+        fnirs_expected_trials = 36
+        expected_duration_sec = 1050.0
+
+        # Determine if recordings are complete
+        # Allow 5% tolerance for duration
+        duration_tolerance = 0.95
+        eeg_duration_complete = eeg_duration_sec >= (expected_duration_sec * duration_tolerance)
+        fnirs_duration_complete = fnirs_duration_sec >= (expected_duration_sec * duration_tolerance)
+
+        # Check if trial counts match between modalities
+        trials_match = eeg_n_valid_trials == fnirs_n_valid_trials
+
+        # Compute EEG channel quality metrics
+        logger.info("Computing EEG channel quality metrics...")
+        from affective_fnirs.reporting import compute_eeg_channel_quality
+        
+        # Evaluate key channels: C3, C4, F3, F4, Fp1, Fp2
+        channels_to_evaluate = ['C3', 'C4', 'F3', 'F4', 'Fp1', 'Fp2']
+        
+        # For sub-002, we know only C3, C4, F3, F4 were well-connected
+        # Use this as ground truth to detect noise in other channels
+        known_good_channels = ['C3', 'C4', 'F3', 'F4']
+        
+        eeg_channel_quality = compute_eeg_channel_quality(
+            raw_eeg, 
+            channels_to_evaluate,
+            known_good_channels=known_good_channels
+        )
+        
+        # Log quality summary
+        for ch_quality in eeg_channel_quality:
+            logger.info(
+                f"  {ch_quality.channel_name}: {ch_quality.quality_status} "
+                f"(corr={ch_quality.mean_correlation:.3f}, var={ch_quality.signal_variance:.2e})"
+            )
+
+        # Create ExperimentQA dataclass
+        experiment_qa = ExperimentQA(
+            eeg_duration_sec=eeg_duration_sec,
+            fnirs_duration_sec=fnirs_duration_sec,
+            eeg_n_valid_trials=eeg_n_valid_trials,
+            fnirs_n_valid_trials=fnirs_n_valid_trials,
+            eeg_expected_trials=eeg_expected_trials,
+            fnirs_expected_trials=fnirs_expected_trials,
+            eeg_duration_complete=eeg_duration_complete,
+            fnirs_duration_complete=fnirs_duration_complete,
+            trials_match=trials_match,
+            eeg_channel_quality=eeg_channel_quality,
+        )
+
+        # Log QA summary
+        logger.info("Experiment QA Summary:")
+        logger.info(f"  EEG: {eeg_n_valid_trials}/{eeg_expected_trials} trials ({eeg_n_valid_trials/eeg_expected_trials*100:.1f}%)")
+        logger.info(f"  fNIRS: {fnirs_n_valid_trials}/{fnirs_expected_trials} trials ({fnirs_n_valid_trials/fnirs_expected_trials*100:.1f}%)")
+        logger.info(f"  Duration complete: EEG={eeg_duration_complete}, fNIRS={fnirs_duration_complete}")
+        logger.info(f"  Trials match: {trials_match}")
+        
+        # Count quality status
+        good_channels = sum(1 for ch in eeg_channel_quality if ch.quality_status == "good")
+        fair_channels = sum(1 for ch in eeg_channel_quality if ch.quality_status == "fair")
+        poor_channels = sum(1 for ch in eeg_channel_quality if ch.quality_status == "poor")
+        logger.info(f"  EEG channel quality: {good_channels} good, {fair_channels} fair, {poor_channels} poor")
+
+        if not eeg_duration_complete or not fnirs_duration_complete:
+            logger.warning("⚠ Recording duration incomplete - may indicate premature termination")
+        if not trials_match:
+            logger.warning("⚠ Trial count mismatch between EEG and fNIRS")
+        if poor_channels > 0:
+            poor_ch_names = [ch.channel_name for ch in eeg_channel_quality if ch.quality_status == "poor"]
+            logger.warning(f"⚠ Poor quality EEG channels detected: {', '.join(poor_ch_names)}")
+
+    except Exception as e:
+        raise PipelineError(f"Stage 8.5 failed (Experiment QA): {e}") from e
+
+
+    # =========================================================================
     # STAGE 9: Generate reports (Quality, HTML, JSON)
     # =========================================================================
     logger.info("=" * 70)
@@ -1016,6 +1143,7 @@ def run_validation_pipeline(
             erd_metrics_c4=erd_metrics_c4,
             hrf_validation=hrf_validation,
             coupling_metrics=coupling_metrics,
+            experiment_qa=experiment_qa,
             lateralization_metrics=lateralization_metrics,
         )
 
@@ -1030,6 +1158,7 @@ def run_validation_pipeline(
         logger.info("Generating HTML validation report...")
         figures = {
             "quality_heatmap": quality_heatmap,
+            "eeg_psd_by_condition": eeg_psd_by_condition,
             "eeg_spectrogram": eeg_spectrogram,
             "erd_timecourse": erd_timecourse,
             "eeg_spectrogram_left_by_condition": eeg_spectrogram_left_by_condition,

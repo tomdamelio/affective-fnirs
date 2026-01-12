@@ -891,10 +891,10 @@ def generate_quality_heatmap(
     sat_vals = [saturation_values.get(ch, 0) for ch in channel_names]
     colors_sat = ["red" if v > 5.0 else "green" for v in sat_vals]
 
-    # Show only first 20 channels if too many
-    display_channels = channel_names[:20] if len(channel_names) > 20 else channel_names
-    display_sat = sat_vals[:20] if len(sat_vals) > 20 else sat_vals
-    display_colors = colors_sat[:20] if len(colors_sat) > 20 else colors_sat
+    # Show ALL channels (removed 20-channel limit)
+    display_channels = channel_names
+    display_sat = sat_vals
+    display_colors = colors_sat
 
     ax2.barh(display_channels, display_sat, color=display_colors, alpha=0.7)
     ax2.axvline(x=5.0, color="black", linestyle="--", linewidth=1, label="Threshold")
@@ -908,8 +908,9 @@ def generate_quality_heatmap(
     psp_vals = [cardiac_power.get(ch, 0) for ch in channel_names]
     colors_psp = ["green" if v > 0.1 else "red" for v in psp_vals]
 
-    display_psp = psp_vals[:20] if len(psp_vals) > 20 else psp_vals
-    display_colors_psp = colors_psp[:20] if len(colors_psp) > 20 else colors_psp
+    # Show ALL channels (removed 20-channel limit)
+    display_psp = psp_vals
+    display_colors_psp = colors_psp
 
     ax3.barh(display_channels, display_psp, color=display_colors_psp, alpha=0.7)
     ax3.axvline(x=0.1, color="black", linestyle="--", linewidth=1, label="Threshold")

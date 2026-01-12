@@ -1,0 +1,63 @@
+# Configuration for sub-004
+# Adjust epoch windows based on actual trial parameters
+
+filters:
+  eeg_bandpass_low_hz: 1.0
+  eeg_bandpass_high_hz: 40.0
+  fnirs_bandpass_low_hz: 0.01
+  fnirs_bandpass_high_hz: 0.5
+  cardiac_band_low_hz: 0.5
+  cardiac_band_high_hz: 2.5
+
+quality:
+  sci_threshold: 0.75
+  cv_threshold_percent: 15.0
+  saturation_percent: 5.0
+  psp_threshold: 0.1
+  short_channel_distance_mm: 15.0
+
+epochs:
+  # EEG epochs: -3s baseline, task, post
+  eeg_tmin_sec: -3.0
+  eeg_tmax_sec: 20.0
+  # fNIRS epochs: -3s baseline, task, HRF
+  fnirs_tmin_sec: -3.0
+  fnirs_tmax_sec: 20.0
+  # Baseline correction window
+  baseline_tmin_sec: -3.0
+  baseline_tmax_sec: -1.0
+
+analysis:
+  # Frequency bands
+  alpha_band_low_hz: 8.0
+  alpha_band_high_hz: 13.0
+  beta_band_low_hz: 13.0
+  beta_band_high_hz: 30.0
+  # ERD time windows
+  baseline_window_start_sec: -3.0
+  baseline_window_end_sec: -1.0
+  task_window_start_sec: 1.0
+  task_window_end_sec: 14.0
+  # Beta rebound window
+  beta_rebound_window_start_sec: 15.0
+  beta_rebound_window_end_sec: 20.0
+  # HRF validation windows
+  hrf_onset_window_start_sec: 2.0
+  hrf_onset_window_end_sec: 3.0
+  hrf_peak_window_start_sec: 4.0
+  hrf_peak_window_end_sec: 8.0
+  # DPF for Beer-Lambert
+  dpf: 6.0
+
+ica:
+  enabled: false  # Disabled (only 4 good channels typically)
+  n_components: 15
+  random_state: 42
+  max_iter: 200
+
+motion_correction:
+  method: tddr
+
+data_root: data/raw
+output_root: data/derivatives/validation-pipeline
+random_seed: 42

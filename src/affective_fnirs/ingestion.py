@@ -223,19 +223,30 @@ def identify_streams(
         # Check fNIRS patterns (name or type)
         for pattern in fnirs_patterns:
             if pattern in stream_name or pattern in stream_type:
-                # Replace if we don't have one yet, or if this one has data and current doesn't
+                # Prefer RAW stream over STATS stream (RAW has intensity data)
+                is_raw_stream = "raw" in stream_name
+                is_stats_stream = "stats" in stream_name
+                
                 if "fnirs" not in identified:
                     identified["fnirs"] = stream
                 elif has_data:
-                    # Check if current one is empty
-                    current_ts = identified["fnirs"]["time_series"]
-                    current_has_data = False
-                    if hasattr(current_ts, 'size'):
-                        current_has_data = current_ts.size > 0
-                    elif isinstance(current_ts, list):
-                        current_has_data = len(current_ts) > 0
-                    if not current_has_data:
+                    # Prefer RAW stream over STATS
+                    current_name = identified["fnirs"]["info"]["name"][0].lower()
+                    current_is_stats = "stats" in current_name
+                    
+                    if is_raw_stream and current_is_stats:
+                        # Replace STATS with RAW
                         identified["fnirs"] = stream
+                    elif not is_stats_stream:
+                        # Check if current one is empty
+                        current_ts = identified["fnirs"]["time_series"]
+                        current_has_data = False
+                        if hasattr(current_ts, 'size'):
+                            current_has_data = current_ts.size > 0
+                        elif isinstance(current_ts, list):
+                            current_has_data = len(current_ts) > 0
+                        if not current_has_data:
+                            identified["fnirs"] = stream
                 break
 
         # Check Marker patterns (name or type)

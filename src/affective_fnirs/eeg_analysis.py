@@ -986,41 +986,40 @@ def define_motor_roi_clusters() -> dict[str, list[str]]:
     """
     Define motor cortex ROI clusters for bilateral analysis.
 
-    Returns motor cortex regions of interest (ROIs) as clusters of electrodes
-    following the 10-20 system. Using clusters instead of single electrodes
-    improves signal-to-noise ratio and spatial robustness.
+    Returns motor cortex regions of interest (ROIs) as single electrodes
+    (C3 and C4 only) due to limited channel availability in sub-002 data.
 
     Returns:
         Dictionary mapping ROI names to lists of channel names:
-        - 'left_motor': Left hemisphere motor cortex (C3 + neighbors)
-        - 'right_motor': Right hemisphere motor cortex (C4 + neighbors)
+        - 'left_motor': Left hemisphere motor cortex (C3 only)
+        - 'right_motor': Right hemisphere motor cortex (C4 only)
 
     Notes:
-        - Left motor cortex (C3 cluster): Controls right hand movement
-        - Right motor cortex (C4 cluster): Controls left hand movement
-        - Clusters include central electrode + immediate neighbors
-        - Averaging across cluster reduces noise and improves SNR
-        - Channel selection based on standard 32-channel 10-20 montage
+        - Left motor cortex (C3): Controls right hand movement
+        - Right motor cortex (C4): Controls left hand movement
+        - Sub-002 data has only 4 good EEG channels: C3, C4, F3, F4
+        - Neighbor channels (FC1, CP1, T7, FC2, CP2, T8) are not available
+        - Using single electrodes instead of clusters due to data limitations
 
     Example:
         >>> clusters = define_motor_roi_clusters()
         >>> print(clusters['left_motor'])
-        ['C3', 'FC1', 'CP1', 'T7']
+        ['C3']
         >>> print(clusters['right_motor'])
-        ['C4', 'FC2', 'CP2', 'T8']
+        ['C4']
 
     References:
         - Pfurtscheller & Neuper (1997). Motor imagery activates primary
           sensorimotor area in humans. Neurosci Lett 239(2-3).
         - 10-20 system: Jasper (1958). The ten-twenty electrode system.
 
-    Requirements: Enhanced spatial robustness for ERD detection
+    Requirements: Adapted for limited channel availability
     """
-    # Clusters based on standard 32-channel 10-20 montage
-    # C3/C4 + frontocentral + centroparietal + temporal neighbors
+    # Simplified clusters for sub-002: only C3 and C4 available
+    # Neighbor channels have poor data quality
     clusters = {
-        'left_motor': ['C3', 'FC1', 'CP1', 'T7'],  # Left hemisphere (right hand)
-        'right_motor': ['C4', 'FC2', 'CP2', 'T8'],  # Right hemisphere (left hand)
+        'left_motor': ['C3'],   # Left hemisphere (right hand control)
+        'right_motor': ['C4'],  # Right hemisphere (left hand control)
     }
     return clusters
 
@@ -1509,4 +1508,237 @@ def plot_condition_contrast_spectrograms(
 
     plt.tight_layout(rect=[0, 0, 1, 0.99])
 
+    return fig
+
+
+
+def compute_psd_by_condition(
+    raw: mne.io.Raw,
+    channels: list[str],
+    tmin: float = -3.0,
+    tmax: float = 20.0,
+    fmin: float = 1.0,
+    fmax: float = 40.0,
+) -> dict[str, dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]]:
+    """
+    Compute Power Spectral Density (PSD) for each condition and channel.
+
+    Computes PSD separately for LEFT, RIGHT, and NOTHING conditions across
+    all available trials. Returns mean PSD and standard deviation for
+    visualization with error bands.
+
+    Args:
+        raw: Preprocessed EEG Raw object with annotations
+        channels: List of channel names to analyze (e.g., ['C3', 'C4', 'F3', 'F4'])
+        tmin: Epoch start time relative to event (seconds)
+        tmax: Epoch end time relative to event (seconds)
+        fmin: Minimum frequency for PSD (Hz)
+        fmax: Maximum frequency for PSD (Hz)
+
+    Returns:
+        Dictionary with structure:
+        {
+            'LEFT': {
+                'C3': (freqs, psd_mean, psd_std),
+                'C4': (freqs, psd_mean, psd_std),
+                ...
+            },
+            'RIGHT': {...},
+            'NOTHING': {...}
+        }
+
+    Notes:
+        - Uses Welch's method for PSD estimation
+        - PSD computed on entire epoch (tmin to tmax)
+        - Mean and std computed across trials for each condition
+        - Useful for comparing spectral profiles across conditions
+
+    Example:
+        >>> psd_data = compute_psd_by_condition(raw, ['C3', 'C4'])
+        >>> freqs, psd_mean, psd_std = psd_data['LEFT']['C3']
+        >>> # Plot with error band: plt.fill_between(freqs, psd_mean-psd_std, psd_mean+psd_std)
+    """
+    logger.info(f"Computing PSD by condition for channels: {channels}")
+    
+    # Get events and create epochs for each condition
+    events, event_id = mne.events_from_annotations(raw)
+    
+    # Map event IDs to condition names
+    condition_names = {}
+    for name, code in event_id.items():
+        if 'LEFT' in name:
+            condition_names[code] = 'LEFT'
+        elif 'RIGHT' in name:
+            condition_names[code] = 'RIGHT'
+        elif 'NOTHING' in name:
+            condition_names[code] = 'NOTHING'
+    
+    # Create epochs
+    epochs = mne.Epochs(
+        raw,
+        events,
+        event_id=event_id,
+        tmin=tmin,
+        tmax=tmax,
+        baseline=None,  # No baseline correction for PSD
+        preload=True,
+        picks=channels,
+        verbose=False,
+    )
+    
+    # Initialize results dictionary
+    psd_results = {'LEFT': {}, 'RIGHT': {}, 'NOTHING': {}}
+    
+    # Compute PSD for each condition and channel
+    for condition in ['LEFT', 'RIGHT', 'NOTHING']:
+        # Get condition code
+        condition_code = [code for code, name in condition_names.items() if name == condition]
+        if not condition_code:
+            logger.warning(f"Condition {condition} not found in events")
+            continue
+        
+        # Select epochs for this condition
+        condition_epochs = epochs[str(condition_code[0])]
+        n_trials = len(condition_epochs)
+        logger.info(f"{condition}: {n_trials} epochs")
+        
+        if n_trials == 0:
+            continue
+        
+        # Compute PSD for each channel
+        for ch in channels:
+            # Get PSD for all trials
+            psd_trials = []
+            for trial_idx in range(n_trials):
+                trial_data = condition_epochs[trial_idx].get_data(picks=[ch])[0, 0, :]
+                
+                # Compute PSD using Welch's method
+                from scipy import signal
+                freqs, psd = signal.welch(
+                    trial_data,
+                    fs=epochs.info['sfreq'],
+                    nperseg=min(256, len(trial_data)),
+                    noverlap=None,
+                )
+                
+                # Select frequency range
+                freq_mask = (freqs >= fmin) & (freqs <= fmax)
+                psd_trials.append(psd[freq_mask])
+            
+            # Convert to array and compute statistics
+            psd_trials = np.array(psd_trials)
+            psd_mean = np.mean(psd_trials, axis=0)
+            psd_std = np.std(psd_trials, axis=0)
+            freqs_selected = freqs[freq_mask]
+            
+            # Store results
+            psd_results[condition][ch] = (freqs_selected, psd_mean, psd_std)
+    
+    return psd_results
+
+
+def plot_psd_by_condition(
+    psd_data: dict[str, dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]],
+    channels: list[str] = ['C3', 'C4', 'F3', 'F4'],
+    figsize: tuple[float, float] = (14, 10),
+) -> plt.Figure:
+    """
+    Plot Power Spectral Density for each channel and condition.
+
+    Creates a 2x2 subplot figure with one subplot per channel, showing
+    PSD for LEFT, RIGHT, and NOTHING conditions with shaded error bands.
+
+    Args:
+        psd_data: Dictionary from compute_psd_by_condition()
+        channels: List of 4 channel names (default: ['C3', 'C4', 'F3', 'F4'])
+        figsize: Figure size (width, height) in inches
+
+    Returns:
+        Matplotlib Figure object
+
+    Notes:
+        - Each subplot shows 3 lines (LEFT, RIGHT, NOTHING)
+        - Shaded regions represent ±1 SD across trials
+        - Vertical lines mark alpha (8-13 Hz) and beta (13-30 Hz) bands
+        - Log scale on y-axis for better visualization
+
+    Example:
+        >>> psd_data = compute_psd_by_condition(raw, ['C3', 'C4', 'F3', 'F4'])
+        >>> fig = plot_psd_by_condition(psd_data)
+        >>> plt.show()
+    """
+    logger.info(f"Plotting PSD by condition for {len(channels)} channels")
+    
+    # Create 2x2 subplot
+    fig, axes = plt.subplots(2, 2, figsize=figsize)
+    axes = axes.flatten()
+    
+    # Colors for conditions
+    colors = {
+        'LEFT': '#1f77b4',    # Blue
+        'RIGHT': '#ff7f0e',   # Orange
+        'NOTHING': '#2ca02c', # Green
+    }
+    
+    # Plot each channel
+    for idx, ch in enumerate(channels):
+        ax = axes[idx]
+        
+        # Plot each condition
+        for condition in ['LEFT', 'RIGHT', 'NOTHING']:
+            if ch not in psd_data[condition]:
+                continue
+            
+            freqs, psd_mean, psd_std = psd_data[condition][ch]
+            
+            # Convert to µV²/Hz for better scale
+            psd_mean_uv = psd_mean * 1e12  # V² to µV²
+            psd_std_uv = psd_std * 1e12
+            
+            # Calculate error bands, ensuring lower bound is positive for log scale
+            lower_bound = np.maximum(psd_mean_uv - psd_std_uv, psd_mean_uv * 0.01)  # At least 1% of mean
+            upper_bound = psd_mean_uv + psd_std_uv
+            
+            # Plot mean line
+            ax.plot(
+                freqs,
+                psd_mean_uv,
+                color=colors[condition],
+                linewidth=2,
+                label=condition,
+                alpha=0.9,
+            )
+            
+            # Plot shaded error band (±1 SD, with positive lower bound)
+            ax.fill_between(
+                freqs,
+                lower_bound,
+                upper_bound,
+                color=colors[condition],
+                alpha=0.2,
+            )
+        
+        # Mark frequency bands
+        ax.axvspan(8, 13, color='gray', alpha=0.1, label='Alpha' if idx == 0 else '')
+        ax.axvspan(13, 30, color='gray', alpha=0.05, label='Beta' if idx == 0 else '')
+        
+        # Formatting
+        ax.set_xlabel('Frequency (Hz)', fontsize=10)
+        ax.set_ylabel('Power (µV²/Hz)', fontsize=10)
+        ax.set_title(f'{ch}', fontsize=12, fontweight='bold')
+        ax.set_yscale('log')
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc='upper right', fontsize=9)
+        ax.set_xlim(1, 40)
+    
+    # Overall title
+    fig.suptitle(
+        'Power Spectral Density by Condition\n'
+        '(Solid line = mean, shaded area = ±1 SD across trials)',
+        fontsize=14,
+        fontweight='bold',
+    )
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    
     return fig
