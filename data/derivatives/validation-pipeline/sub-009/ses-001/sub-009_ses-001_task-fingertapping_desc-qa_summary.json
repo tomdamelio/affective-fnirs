@@ -1,0 +1,225 @@
+{
+  "subject_id": "009",
+  "session_id": "001",
+  "task": "fingertapping",
+  "timestamp": "2026-01-14T17:27:20.493477",
+  "eeg_quality": {
+    "n_channels": 30,
+    "n_good": 0,
+    "n_fair": 2,
+    "n_poor": 28,
+    "channels": [
+      {
+        "channel_name": "Fp1",
+        "mean_correlation": 0.6886124562697687,
+        "signal_variance": 1.1619169269025476e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Fz",
+        "mean_correlation": 0.6781586700940798,
+        "signal_variance": 2.4679410260757687e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F3",
+        "mean_correlation": 0.13643651717559913,
+        "signal_variance": 8.709790423747288e-15,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F7",
+        "mean_correlation": 0.26960302751848986,
+        "signal_variance": 5.1186798199126254e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F9",
+        "mean_correlation": -0.503866662941205,
+        "signal_variance": 6.462611450804541e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "FC5",
+        "mean_correlation": 0.6854010407996596,
+        "signal_variance": 4.5175601435072276e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "FC1",
+        "mean_correlation": 0.6661022454800334,
+        "signal_variance": 6.285995066135466e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "C3",
+        "mean_correlation": 0.6828992244425585,
+        "signal_variance": 3.528018957429807e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "T7",
+        "mean_correlation": 0.7023547490388193,
+        "signal_variance": 3.2579762344129315e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "CP1",
+        "mean_correlation": 0.6362630221438386,
+        "signal_variance": 2.43867357997621e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Pz",
+        "mean_correlation": -0.3343731844008039,
+        "signal_variance": 7.059418265905821e-10,
+        "quality_status": "fair",
+        "is_bad": false
+      },
+      {
+        "channel_name": "P3",
+        "mean_correlation": 0.6684853915490474,
+        "signal_variance": 6.758912584858376e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P7",
+        "mean_correlation": 0.6835787511749026,
+        "signal_variance": 3.425952929836438e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P9",
+        "mean_correlation": 0.6778403855712296,
+        "signal_variance": 2.745702907165843e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "O1",
+        "mean_correlation": 0.6901525636574574,
+        "signal_variance": 1.6651932048590298e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Oz",
+        "mean_correlation": 0.6784531358750799,
+        "signal_variance": 4.3635707385541195e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "O2",
+        "mean_correlation": 0.6989915271693157,
+        "signal_variance": 1.181572873999496e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P10",
+        "mean_correlation": 0.6843921646448526,
+        "signal_variance": 3.91483274395593e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P8",
+        "mean_correlation": 0.6868567711007197,
+        "signal_variance": 2.878590829773506e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P4",
+        "mean_correlation": 0.6982203325834999,
+        "signal_variance": 1.5578244094352927e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "CP2",
+        "mean_correlation": 0.6825208911239202,
+        "signal_variance": 3.468859335635901e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "T8",
+        "mean_correlation": -0.42589829786029243,
+        "signal_variance": 8.210627288882963e-11,
+        "quality_status": "fair",
+        "is_bad": false
+      },
+      {
+        "channel_name": "C4",
+        "mean_correlation": 0.6672363787737488,
+        "signal_variance": 6.973924868781176e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Cz",
+        "mean_correlation": 0.6773389928650893,
+        "signal_variance": 2.479878306481325e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "FC2",
+        "mean_correlation": 0.68049943925931,
+        "signal_variance": 3.753758633623937e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "FC6",
+        "mean_correlation": 0.1296002609229946,
+        "signal_variance": 1.2748382026319573e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F10",
+        "mean_correlation": 0.6606388807529943,
+        "signal_variance": 2.910784889101371e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F8",
+        "mean_correlation": 0.6986703054739469,
+        "signal_variance": 4.395015527007166e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F4",
+        "mean_correlation": 0.6844865320879769,
+        "signal_variance": 1.823840119793192e-13,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Fp2",
+        "mean_correlation": 0.4456084199666942,
+        "signal_variance": 1.0458210670655729e-14,
+        "quality_status": "poor",
+        "is_bad": true
+      }
+    ]
+  },
+  "fnirs_quality": null
+}

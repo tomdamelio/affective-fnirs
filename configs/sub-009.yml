@@ -1,0 +1,95 @@
+# Configuration for sub-009: EEG-only analysis
+
+# Subject identification for BIDS compliance
+subject:
+  id: "009"
+  session: "001"
+  task: "fingertapping"
+
+# Modality configuration
+modalities:
+  eeg_enabled: true
+  fnirs_enabled: true
+
+# Report options
+report:
+  qa_only: false
+
+# EEG channels of interest
+eeg_channels_of_interest:
+  - "C3"
+  - "C4"
+
+# EEG preprocessing
+eeg_preprocessing:
+  reference_channel: "Cz"
+  apply_car: true
+  ica_enabled: true
+
+# Trial structure
+trials:
+  count_per_condition: 12
+  task_duration_sec: 15.0
+  rest_duration_sec: 15.0
+
+# Filter configuration
+filters:
+  eeg_bandpass_low_hz: 1.0
+  eeg_bandpass_high_hz: 40.0
+  fnirs_bandpass_low_hz: 0.01
+  fnirs_bandpass_high_hz: 0.5
+  cardiac_band_low_hz: 0.5
+  cardiac_band_high_hz: 2.5
+
+# Quality thresholds
+quality:
+  sci_threshold: 0.75
+  cv_threshold_percent: 15.0
+  saturation_percent: 5.0
+  psp_threshold: 0.1
+  short_channel_distance_mm: 15.0
+
+# Epoch configuration
+epochs:
+  eeg_tmin_sec: -3.0
+  eeg_tmax_sec: 20.0
+  fnirs_tmin_sec: -3.0
+  fnirs_tmax_sec: 25.0
+  baseline_tmin_sec: -3.0
+  baseline_tmax_sec: -1.0
+
+# Analysis configuration
+analysis:
+  alpha_band_low_hz: 8.0
+  alpha_band_high_hz: 13.0
+  beta_band_low_hz: 13.0
+  beta_band_high_hz: 30.0
+  baseline_window_start_sec: -3.0
+  baseline_window_end_sec: -1.0
+  task_window_start_sec: 1.0
+  task_window_end_sec: 14.0
+  beta_rebound_window_start_sec: 15.0
+  beta_rebound_window_end_sec: 20.0
+  hrf_onset_window_start_sec: 2.0
+  hrf_onset_window_end_sec: 3.0
+  hrf_peak_window_start_sec: 4.0
+  hrf_peak_window_end_sec: 8.0
+  dpf: 6.0
+
+# ICA configuration
+ica:
+  enabled: true
+  n_components: 15
+  random_state: 42
+  max_iter: 200
+
+# Motion correction
+motion_correction:
+  method: tddr
+
+# Data paths
+data_root: data/raw
+output_root: data/derivatives/validation-pipeline
+
+# Random seed
+random_seed: 42

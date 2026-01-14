@@ -589,28 +589,23 @@ def interpolate_bad_channels(raw: mne.io.Raw) -> mne.io.Raw:
 
 
 def rereference_eeg(
-    raw: mne.io.Raw, ref_channels: str = "average"
+    raw: mne.io.Raw, ref_channels: str | list[str] = "average"
 ) -> mne.io.Raw:
     """
-    Apply Common Average Reference (CAR) to EEG.
+    Apply EEG re-referencing.
 
-    CAR subtracts the mean of all electrodes from each electrode, removing
-    shared noise and improving SNR for localized sources (e.g., motor cortex).
-
-    Algorithm:
-    1. Compute reference signal: ref = mean(all_good_channels)
-    2. For each channel: channel_new = channel_old - ref
-    3. Result: All channels referenced to their collective average
-
-    Critical: Bad channels must be excluded/interpolated before CAR to
-    prevent noise propagation (Req. 5.7).
+    Supports multiple referencing schemes:
+    - 'average': Common Average Reference (CAR) - mean of all electrodes
+    - ['Cz']: Single electrode reference (e.g., Cz)
+    - ['M1', 'M2']: Linked mastoids or other electrode pairs
 
     Args:
         raw: MNE Raw object with EEG data
             - Bad channels should be interpolated beforehand
             - Montage should be applied (for spatial context)
         ref_channels: Reference type
-            - 'average': Common Average Reference (recommended)
+            - 'average': Common Average Reference (recommended for dense arrays)
+            - ['Cz']: Reference to Cz electrode (common for motor studies)
             - List of channel names: Reference to specific channels
             - None: Keep original reference
 
@@ -618,22 +613,20 @@ def rereference_eeg(
         Re-referenced MNE Raw object
 
     Notes:
-        - CAR improves SNR for motor rhythms (mu, beta)
-        - If original reference was Cz or mastoids, CAR transforms to average
-        - MNE automatically excludes channels in info['bads'] from average
-        - After CAR, no single channel is "reference" (all are relative to average)
+        - CAR improves SNR for motor rhythms when many channels available
+        - Cz reference is standard for motor cortex studies with few channels
+        - MNE automatically excludes channels in info['bads'] from reference
         - Document reference transformation in processing log
 
     Example:
-        >>> # After interpolation
-        >>> raw_car = rereference_eeg(raw_interp, ref_channels='average')
-        >>> # Log: "Applied Common Average Reference (32 channels)"
-        >>> # Original reference (e.g., Cz) is now transformed
+        >>> # Reference to Cz
+        >>> raw_cz = rereference_eeg(raw, ref_channels=['Cz'])
+        >>> # Common average reference
+        >>> raw_car = rereference_eeg(raw, ref_channels='average')
 
     References:
         - Nunez & Srinivasan (2006). Electric Fields of the Brain. Oxford University Press.
         - MNE set_eeg_reference: https://mne.tools/stable/generated/mne.io.Raw.html#mne.io.Raw.set_eeg_reference
-        - Yao (2001). A method to standardize EEG reference. Physiol Meas 22(4).
 
     Requirements: 5.7
     """
@@ -641,7 +634,7 @@ def rereference_eeg(
     if raw.info["bads"]:
         logger.warning(
             f"Bad channels present before re-referencing: {raw.info['bads']}. "
-            f"These will be excluded from the average reference. "
+            f"These will be excluded from the reference. "
             f"Consider interpolating bad channels first."
         )
 
@@ -649,19 +642,24 @@ def rereference_eeg(
     eeg_picks = mne.pick_types(raw.info, eeg=True, exclude="bads")
     n_eeg_channels = len(eeg_picks)
 
-    logger.info(
-        f"Applying Common Average Reference to {n_eeg_channels} EEG channels "
-        f"(excluding {len(raw.info['bads'])} bad channels)"
-    )
+    # Log reference type
+    if ref_channels == "average":
+        ref_desc = f"Common Average Reference ({n_eeg_channels} channels)"
+    elif isinstance(ref_channels, list):
+        ref_desc = f"Reference to {', '.join(ref_channels)}"
+    else:
+        ref_desc = f"Reference: {ref_channels}"
+
+    logger.info(f"Applying {ref_desc} (excluding {len(raw.info['bads'])} bad channels)")
 
     # Create a copy to avoid modifying original
     raw_reref = raw.copy()
 
-    # Apply Common Average Reference
+    # Apply re-referencing
     # projection=False means apply immediately (not as a projector)
     raw_reref.set_eeg_reference(ref_channels=ref_channels, projection=False)
 
-    logger.info(f"Common Average Reference applied successfully")
+    logger.info(f"Re-referencing applied successfully: {ref_desc}")
 
     return raw_reref
 
@@ -672,28 +670,38 @@ def preprocess_eeg_pipeline(
     raw_eeg: mne.io.Raw,
     config: PipelineConfig,
     save_ica_path: str | None = None,
+    reference_channel: str | None = None,
+    apply_car: bool | None = None,
+    ica_enabled: bool | None = None,
 ) -> Tuple[mne.io.Raw, mne.preprocessing.ICA | None]:
     """
     Complete EEG preprocessing pipeline following best practices.
 
     Pipeline stages:
-    1. Bandpass filter (1-40 Hz)
-    2. Detect bad channels
-    3. [Optional] Fit ICA (artifact decomposition)
-    4. [Optional] Identify EOG components (frontal correlation)
-    5. [Optional] Identify EMG components (high-freq power)
-    6. [Optional] Apply ICA (remove artifacts)
-    7. Interpolate bad channels
-    8. Common Average Reference
+    1. [Optional] Apply initial reference channel (if specified)
+    2. Bandpass filter (1-40 Hz)
+    3. Detect bad channels
+    4. [Optional] Fit ICA (artifact decomposition)
+    5. [Optional] Identify EOG components (frontal correlation)
+    6. [Optional] Identify EMG components (high-freq power)
+    7. [Optional] Apply ICA (remove artifacts)
+    8. Interpolate bad channels
+    9. [Optional] Common Average Reference (if apply_car=True)
 
     ICA is skipped if:
-    - config.ica.enabled = False
+    - ica_enabled = False (or config.ica.enabled = False if not specified)
     - Number of bad channels <= config.ica.max_bad_channels_for_skip (data is clean)
 
     Args:
         raw_eeg: Raw EEG data with 10-20 montage applied
         config: Pipeline configuration with ICA and filter parameters
         save_ica_path: Optional path to save ICA object for reproducibility
+        reference_channel: Initial reference channel (e.g., "Cz"). If None, no
+            initial re-referencing is applied. Default: None
+        apply_car: Whether to apply Common Average Reference at the end.
+            If None, defaults to True (backward compatible). Default: None
+        ica_enabled: Whether to apply ICA artifact removal. If None, uses
+            config.ica.enabled. Default: None
 
     Returns:
         cleaned_raw: Preprocessed EEG ready for analysis
@@ -702,18 +710,48 @@ def preprocess_eeg_pipeline(
     Example:
         >>> from affective_fnirs.config import PipelineConfig
         >>> config = PipelineConfig.default()
-        >>> raw_clean, ica = preprocess_eeg_pipeline(raw_eeg, config)
+        >>> # With configurable preprocessing options
+        >>> raw_clean, ica = preprocess_eeg_pipeline(
+        ...     raw_eeg, config,
+        ...     reference_channel="Cz",
+        ...     apply_car=False,
+        ...     ica_enabled=True
+        ... )
         >>> if ica is not None:
         >>>     ica.save('derivatives/ica/sub-001_ses-001_task-fingertapping_ica.fif')
 
-    Requirements: 5.1-5.7
+    Requirements: 3.1, 5.1-5.7, 8.5-8.9
     """
     logger.info("=" * 80)
     logger.info("Starting EEG Preprocessing Pipeline")
     logger.info("=" * 80)
 
+    # Determine ICA enabled status (parameter overrides config)
+    use_ica = ica_enabled if ica_enabled is not None else config.ica.enabled
+    
+    # Determine CAR application (parameter overrides default True)
+    use_car = apply_car if apply_car is not None else True
+
+    # Log preprocessing configuration
+    logger.info("Preprocessing Configuration:")
+    logger.info(f"  Initial reference: {reference_channel if reference_channel else 'None (keep original)'}")
+    logger.info(f"  Apply CAR: {use_car}")
+    logger.info(f"  ICA enabled: {use_ica}")
+
+    # Stage 0 (Optional): Apply initial reference channel
+    if reference_channel is not None:
+        logger.info(f"Stage 0: Applying initial reference to {reference_channel}")
+        if reference_channel in raw_eeg.ch_names:
+            raw_eeg = rereference_eeg(raw_eeg, ref_channels=[reference_channel])
+            logger.info(f"Applied initial reference to {reference_channel}")
+        else:
+            logger.warning(
+                f"Reference channel {reference_channel} not found in data. "
+                f"Available channels: {raw_eeg.ch_names}. Skipping initial reference."
+            )
+
     # Stage 1: Bandpass filter
-    logger.info("Stage 1/8: Bandpass filtering")
+    logger.info("Stage 1: Bandpass filtering")
     raw_filtered = preprocess_eeg(
         raw_eeg,
         l_freq=config.filters.eeg_bandpass_low_hz,
@@ -722,7 +760,7 @@ def preprocess_eeg_pipeline(
     )
 
     # Stage 2: Detect bad channels
-    logger.info("Stage 2/8: Detecting bad channels")
+    logger.info("Stage 2: Detecting bad channels")
     bad_channels = detect_bad_eeg_channels(raw_filtered)
     if bad_channels:
         logger.warning(f"Bad channels detected: {bad_channels}")
@@ -733,14 +771,14 @@ def preprocess_eeg_pipeline(
     # Decide whether to apply ICA
     n_bad_channels = len(bad_channels)
     skip_ica = (
-        not config.ica.enabled
+        not use_ica
         or n_bad_channels <= config.ica.max_bad_channels_for_skip
     )
 
     ica = None
     if skip_ica:
-        if not config.ica.enabled:
-            logger.info("ICA disabled in configuration - skipping artifact removal")
+        if not use_ica:
+            logger.info("ICA disabled - skipping artifact removal")
         else:
             logger.info(
                 f"Only {n_bad_channels} bad channels detected "
@@ -750,7 +788,7 @@ def preprocess_eeg_pipeline(
         raw_clean = raw_filtered.copy()
     else:
         # Stage 3: Fit ICA
-        logger.info("Stage 3/8: Fitting ICA")
+        logger.info("Stage 3: Fitting ICA")
         _, ica = apply_ica_artifact_removal(
             raw_filtered,
             n_components=config.ica.n_components,
@@ -759,13 +797,13 @@ def preprocess_eeg_pipeline(
         )
 
         # Stage 4: Identify EOG components
-        logger.info("Stage 4/8: Identifying EOG components")
+        logger.info("Stage 4: Identifying EOG components")
         eog_components = identify_eog_components(
             ica, raw_filtered, threshold=config.ica.eog_threshold
         )
 
         # Stage 5: Identify EMG components
-        logger.info("Stage 5/8: Identifying EMG components")
+        logger.info("Stage 5: Identifying EMG components")
         emg_components = identify_emg_components(
             ica,
             raw_filtered,
@@ -786,7 +824,7 @@ def preprocess_eeg_pipeline(
             artifact_components = artifact_components[:max_components_to_remove]
         
         logger.info(
-            f"Stage 6/8: Applying ICA (excluding {len(artifact_components)} components: "
+            f"Stage 6: Applying ICA (excluding {len(artifact_components)} components: "
             f"{artifact_components})"
         )
         ica.exclude = artifact_components
@@ -799,14 +837,17 @@ def preprocess_eeg_pipeline(
 
     # Stage 7: Interpolate bad channels
     if raw_clean.info["bads"]:
-        logger.info("Stage 7/8: Interpolating bad channels")
+        logger.info("Stage 7: Interpolating bad channels")
         raw_clean = interpolate_bad_channels(raw_clean)
     else:
-        logger.info("Stage 7/8: No bad channels to interpolate")
+        logger.info("Stage 7: No bad channels to interpolate")
 
-    # Stage 8: Common Average Reference
-    logger.info("Stage 8/8: Applying Common Average Reference")
-    raw_clean = rereference_eeg(raw_clean, ref_channels="average")
+    # Stage 8: Common Average Reference (CAR) - conditional
+    if use_car:
+        logger.info("Stage 8: Applying Common Average Reference (CAR)")
+        raw_clean = rereference_eeg(raw_clean, ref_channels="average")
+    else:
+        logger.info("Stage 8: Skipping CAR (apply_car=False)")
 
     logger.info("=" * 80)
     logger.info("EEG Preprocessing Pipeline Complete")

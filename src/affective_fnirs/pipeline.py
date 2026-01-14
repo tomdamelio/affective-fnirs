@@ -677,8 +677,8 @@ def run_validation_pipeline(
         eeg_spectrogram = plot_condition_contrast_spectrograms(
             tfr_by_condition,
             motor_clusters,
-            vmin=-50.0,
-            vmax=50.0,
+            vmin=-20.0,
+            vmax=20.0,
             task_onset=0.0,
             task_offset=config.analysis.task_window_end_sec,
             alpha_band=(config.analysis.alpha_band_low_hz, config.analysis.alpha_band_high_hz),
@@ -754,8 +754,8 @@ def run_validation_pipeline(
         logger.info("  Expected: NOTHING → No significant ERD")
 
         # Create filtered-only EEG for lateralization analysis
-        # Note: CAR distorts ERD patterns, so we use filtered data without CAR
-        logger.info("  Using filtered EEG (without CAR) for accurate ERD detection")
+        # Note: CAR distorts ERD patterns, so we use filtered data without Common Average Reference
+        logger.info("  Using filtered EEG (without Common Average Reference) for accurate ERD detection")
         raw_eeg_filtered = raw_eeg.copy()
         raw_eeg_filtered.filter(
             l_freq=config.filters.eeg_bandpass_low_hz,
@@ -763,7 +763,7 @@ def run_validation_pipeline(
             verbose=False,
         )
 
-        # Run lateralization analysis on filtered EEG (without CAR)
+        # Run lateralization analysis on filtered EEG (without Common Average Reference)
         lateralization_result = compute_lateralization_analysis(
             raw_eeg_filtered,
             alpha_band=(config.analysis.alpha_band_low_hz, config.analysis.alpha_band_high_hz),
@@ -1048,12 +1048,22 @@ def run_validation_pipeline(
         logger.info("Computing EEG channel quality metrics...")
         from affective_fnirs.reporting import compute_eeg_channel_quality
         
-        # Evaluate key channels: C3, C4, F3, F4, Fp1, Fp2
-        channels_to_evaluate = ['C3', 'C4', 'F3', 'F4', 'Fp1', 'Fp2']
+        # Get all EEG channels from the raw object
+        eeg_ch_names = [ch for ch in raw_eeg.ch_names if ch in mne.pick_types(raw_eeg.info, eeg=True, exclude=[])]
         
-        # For sub-002, we know only C3, C4, F3, F4 were well-connected
-        # Use this as ground truth to detect noise in other channels
-        known_good_channels = ['C3', 'C4', 'F3', 'F4']
+        # For subjects with many channels (e.g., sub-009 with ~30 channels),
+        # evaluate all available EEG channels
+        # For subjects with few channels, evaluate the key motor/frontal channels
+        if len(eeg_ch_names) > 10:
+            # Dense array: evaluate all channels
+            channels_to_evaluate = eeg_ch_names
+            known_good_channels = ['C3', 'C4', 'Cz', 'F3', 'F4', 'Fz']  # Motor + frontal
+            logger.info(f"Evaluating all {len(channels_to_evaluate)} EEG channels (dense array)")
+        else:
+            # Sparse array: evaluate key channels only
+            channels_to_evaluate = ['C3', 'C4', 'F3', 'F4', 'Fp1', 'Fp2']
+            known_good_channels = ['C3', 'C4', 'F3', 'F4']
+            logger.info(f"Evaluating {len(channels_to_evaluate)} key EEG channels (sparse array)")
         
         eeg_channel_quality = compute_eeg_channel_quality(
             raw_eeg, 
@@ -1061,12 +1071,21 @@ def run_validation_pipeline(
             known_good_channels=known_good_channels
         )
         
-        # Log quality summary
-        for ch_quality in eeg_channel_quality:
-            logger.info(
-                f"  {ch_quality.channel_name}: {ch_quality.quality_status} "
-                f"(corr={ch_quality.mean_correlation:.3f}, var={ch_quality.signal_variance:.2e})"
-            )
+        # Log quality summary (show first 10 channels if many)
+        if len(eeg_channel_quality) > 10:
+            logger.info(f"  Showing first 10 of {len(eeg_channel_quality)} channels:")
+            for ch_quality in eeg_channel_quality[:10]:
+                logger.info(
+                    f"    {ch_quality.channel_name}: {ch_quality.quality_status} "
+                    f"(corr={ch_quality.mean_correlation:.3f}, var={ch_quality.signal_variance:.2e})"
+                )
+            logger.info(f"  ... ({len(eeg_channel_quality) - 10} more channels)")
+        else:
+            for ch_quality in eeg_channel_quality:
+                logger.info(
+                    f"  {ch_quality.channel_name}: {ch_quality.quality_status} "
+                    f"(corr={ch_quality.mean_correlation:.3f}, var={ch_quality.signal_variance:.2e})"
+                )
 
         # Create ExperimentQA dataclass
         experiment_qa = ExperimentQA(

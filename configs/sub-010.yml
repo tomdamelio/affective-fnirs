@@ -1,0 +1,114 @@
+# Configuration for sub-010: EEG-only analysis
+# Protocol: 36 trials (12 per condition: LEFT, RIGHT, NOTHING), 15s task, 15s rest
+# Total per trial: ~30s, experiment duration: ~18 minutes
+#
+# EEG Montage: ~30 channels from 10-20 system
+# Missing channels: CP5, CP6
+# Reference: Common Average Reference (CAR) - suitable for dense arrays
+#
+# Note: fNIRS not available for this subject
+
+# Subject identification for BIDS compliance
+subject:
+  id: "010"
+  session: "001"
+  task: "fingertapping"
+
+# Modality configuration - EEG only
+modalities:
+  eeg_enabled: true
+  fnirs_enabled: false  # fNIRS not available for sub-010
+
+# Report options
+report:
+  qa_only: false
+
+# EEG channels of interest for ERD/ERS analysis
+eeg_channels_of_interest:
+  - "C3"
+  - "C4"
+
+# EEG preprocessing options
+# Sub-010 has ~30 channels, enough for ICA
+eeg_preprocessing:
+  reference_channel: "Cz"
+  apply_car: true  # Apply CAR for dense array
+  ica_enabled: true  # Enable ICA for sub-010 (has enough channels)
+
+# Trial structure
+trials:
+  count_per_condition: 12
+  task_duration_sec: 15.0
+  rest_duration_sec: 15.0
+
+# Filter configuration
+filters:
+  eeg_bandpass_low_hz: 1.0
+  eeg_bandpass_high_hz: 40.0
+  fnirs_bandpass_low_hz: 0.01
+  fnirs_bandpass_high_hz: 0.5
+  cardiac_band_low_hz: 0.5
+  cardiac_band_high_hz: 2.5
+
+# Quality thresholds
+quality:
+  sci_threshold: 0.75
+  cv_threshold_percent: 15.0
+  saturation_percent: 5.0
+  psp_threshold: 0.1
+  short_channel_distance_mm: 15.0
+
+# Epoch configuration
+epochs:
+  # Long epochs for 15s trials
+  # EEG: -3s baseline, 15s task, 5s post (total 23s)
+  eeg_tmin_sec: -3.0
+  eeg_tmax_sec: 20.0
+  # fNIRS: -3s baseline, 15s task, full HRF window (total 28s)
+  fnirs_tmin_sec: -3.0
+  fnirs_tmax_sec: 25.0
+  # Baseline correction window
+  baseline_tmin_sec: -3.0
+  baseline_tmax_sec: -1.0
+
+# Analysis configuration
+analysis:
+  # Frequency bands
+  alpha_band_low_hz: 8.0
+  alpha_band_high_hz: 13.0
+  beta_band_low_hz: 13.0
+  beta_band_high_hz: 30.0
+  # ERD time windows (adjusted for 15s trials)
+  baseline_window_start_sec: -3.0
+  baseline_window_end_sec: -1.0
+  task_window_start_sec: 1.0
+  task_window_end_sec: 14.0
+  # Beta rebound window (post-task)
+  beta_rebound_window_start_sec: 15.0
+  beta_rebound_window_end_sec: 20.0
+  # HRF validation windows (full canonical HRF)
+  hrf_onset_window_start_sec: 2.0
+  hrf_onset_window_end_sec: 3.0
+  hrf_peak_window_start_sec: 4.0
+  hrf_peak_window_end_sec: 8.0
+  # DPF for Beer-Lambert
+  dpf: 6.0
+
+# ICA configuration
+# Note: ICA execution is controlled by eeg_preprocessing.ica_enabled
+ica:
+  enabled: true  # Legacy field - use eeg_preprocessing.ica_enabled instead
+  n_components: 15
+  random_state: 42
+  max_iter: 200
+
+# Motion correction for fNIRS
+motion_correction:
+  method: tddr
+
+# Data paths
+data_root: data/raw
+output_root: data/derivatives/validation-pipeline
+
+# Random seed for reproducibility
+random_seed: 42

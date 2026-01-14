@@ -1,0 +1,29 @@
+{
+  "subject_id": "010",
+  "session_id": "001",
+  "task": "fingertapping",
+  "timestamp": "2026-01-14T17:34:03.102876",
+  "erd_metrics": {
+    "channel": "C3",
+    "alpha_erd_percent": 7.246447048659352,
+    "alpha_significant": false,
+    "beta_erd_percent": 2.0162877608413448,
+    "beta_significant": false,
+    "beta_rebound_percent": 1.2500442665202762,
+    "beta_rebound_observed": false
+  },
+  "hrf_validation": {
+    "channel": "unknown",
+    "onset_detected": false,
+    "onset_time_sec": 0.0,
+    "peak_plausible": false,
+    "plateau_amplitude_um": 0.0,
+    "plateau_significant": false
+  },
+  "coupling_metrics": {
+    "max_correlation": 0.0,
+    "lag_seconds": 0.0,
+    "eeg_precedes_fnirs": false,
+    "correlation_adequate": false
+  }
+}
