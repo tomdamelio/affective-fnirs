@@ -673,6 +673,7 @@ def preprocess_eeg_pipeline(
     reference_channel: str | None = None,
     apply_car: bool | None = None,
     ica_enabled: bool | None = None,
+    interactive_bad_channel_detection: bool = False,
 ) -> Tuple[mne.io.Raw, mne.preprocessing.ICA | None]:
     """
     Complete EEG preprocessing pipeline following best practices.
@@ -680,13 +681,14 @@ def preprocess_eeg_pipeline(
     Pipeline stages:
     1. [Optional] Apply initial reference channel (if specified)
     2. Bandpass filter (1-40 Hz)
-    3. Detect bad channels
-    4. [Optional] Fit ICA (artifact decomposition)
-    5. [Optional] Identify EOG components (frontal correlation)
-    6. [Optional] Identify EMG components (high-freq power)
-    7. [Optional] Apply ICA (remove artifacts)
-    8. Interpolate bad channels
-    9. [Optional] Common Average Reference (if apply_car=True)
+    3. Detect bad channels (automatic)
+    4. [Optional] Interactive visual inspection for bad channel marking
+    5. [Optional] Fit ICA (artifact decomposition)
+    6. [Optional] Identify EOG components (frontal correlation)
+    7. [Optional] Identify EMG components (high-freq power)
+    8. [Optional] Apply ICA (remove artifacts)
+    9. Interpolate bad channels
+    10. [Optional] Common Average Reference (if apply_car=True)
 
     ICA is skipped if:
     - ica_enabled = False (or config.ica.enabled = False if not specified)
@@ -702,6 +704,8 @@ def preprocess_eeg_pipeline(
             If None, defaults to True (backward compatible). Default: None
         ica_enabled: Whether to apply ICA artifact removal. If None, uses
             config.ica.enabled. Default: None
+        interactive_bad_channel_detection: If True, opens interactive plot after
+            automatic bad channel detection for manual inspection. Default: False
 
     Returns:
         cleaned_raw: Preprocessed EEG ready for analysis
@@ -710,12 +714,13 @@ def preprocess_eeg_pipeline(
     Example:
         >>> from affective_fnirs.config import PipelineConfig
         >>> config = PipelineConfig.default()
-        >>> # With configurable preprocessing options
+        >>> # With interactive bad channel detection
         >>> raw_clean, ica = preprocess_eeg_pipeline(
         ...     raw_eeg, config,
-        ...     reference_channel="Cz",
-        ...     apply_car=False,
-        ...     ica_enabled=True
+        ...     reference_channel=None,
+        ...     apply_car=True,
+        ...     ica_enabled=True,
+        ...     interactive_bad_channel_detection=True
         ... )
         >>> if ica is not None:
         >>>     ica.save('derivatives/ica/sub-001_ses-001_task-fingertapping_ica.fif')
@@ -760,35 +765,72 @@ def preprocess_eeg_pipeline(
     )
 
     # Stage 2: Detect bad channels
-    logger.info("Stage 2: Detecting bad channels")
+    logger.info("Stage 2: Detecting bad channels (automatic)")
     bad_channels = detect_bad_eeg_channels(raw_filtered)
     if bad_channels:
-        logger.warning(f"Bad channels detected: {bad_channels}")
+        logger.warning(f"Automatic detection found bad channels: {bad_channels}")
         raw_filtered.info["bads"] = bad_channels
     else:
-        logger.info("No bad channels detected")
+        logger.info("No bad channels detected automatically")
+    
+    # Stage 2b: Interactive visual inspection (optional)
+    if interactive_bad_channel_detection:
+        logger.info("=" * 80)
+        logger.info("Stage 2b: INTERACTIVE BAD CHANNEL INSPECTION")
+        logger.info("=" * 80)
+        logger.info("Opening interactive plot for visual inspection...")
+        logger.info("Current bad channels (automatic): {}".format(raw_filtered.info["bads"]))
+        logger.info("")
+        logger.info("Instructions:")
+        logger.info("  1. Inspect the FILTERED EEG channels visually")
+        logger.info("  2. Click on channel names to toggle BAD status (gray = bad)")
+        logger.info("  3. You can add or remove channels from the bad list")
+        logger.info("  4. Close the window when done to continue preprocessing")
+        logger.info("=" * 80)
+        
+        # Open interactive plot for manual bad channel marking
+        raw_filtered.plot(
+            n_channels=30,
+            scalings='auto',
+            title='EEG Visual Inspection (Filtered 1-40Hz) - Click channel names to toggle BAD',
+            show=True,
+            block=True  # Wait for user to close window
+        )
+        
+        # Get final bad channels after user inspection
+        bad_channels_final = raw_filtered.info['bads'].copy()
+        
+        # Log changes
+        added_channels = set(bad_channels_final) - set(bad_channels)
+        removed_channels = set(bad_channels) - set(bad_channels_final)
+        
+        if added_channels:
+            logger.info(f"User ADDED bad channels: {list(added_channels)}")
+        if removed_channels:
+            logger.info(f"User REMOVED bad channels: {list(removed_channels)}")
+        if not added_channels and not removed_channels:
+            logger.info("User did not modify bad channel list")
+            
+        logger.info(f"Final bad channels: {bad_channels_final}")
+        bad_channels = bad_channels_final
+        logger.info("=" * 80)
 
     # Decide whether to apply ICA
     n_bad_channels = len(bad_channels)
-    skip_ica = (
-        not use_ica
-        or n_bad_channels <= config.ica.max_bad_channels_for_skip
-    )
-
+    
+    # For motor tasks, always apply ICA to remove motor artifacts
+    # Skip ICA only if explicitly disabled
+    skip_ica = not use_ica
+    
     ica = None
     if skip_ica:
-        if not use_ica:
-            logger.info("ICA disabled - skipping artifact removal")
-        else:
-            logger.info(
-                f"Only {n_bad_channels} bad channels detected "
-                f"(<= {config.ica.max_bad_channels_for_skip}) - "
-                f"data quality is good, skipping ICA"
-            )
+        logger.info("ICA disabled - skipping artifact removal")
         raw_clean = raw_filtered.copy()
     else:
-        # Stage 3: Fit ICA
-        logger.info("Stage 3: Fitting ICA")
+        # Stage 3: Fit ICA (always for motor tasks)
+        logger.info(f"Stage 3: Fitting ICA ({n_bad_channels} bad channels detected)")
+        logger.info("ICA will be applied to remove motor artifacts (finger-tapping task)")
+        
         _, ica = apply_ica_artifact_removal(
             raw_filtered,
             n_components=config.ica.n_components,
@@ -796,38 +838,119 @@ def preprocess_eeg_pipeline(
             method="fastica",
         )
 
-        # Stage 4: Identify EOG components
-        logger.info("Stage 4: Identifying EOG components")
+        # Stage 4: Identify EOG components (automatic)
+        logger.info("Stage 4: Identifying EOG components (automatic)")
         eog_components = identify_eog_components(
             ica, raw_filtered, threshold=config.ica.eog_threshold
         )
+        if eog_components:
+            logger.info(f"EOG components detected: {eog_components}")
+        else:
+            logger.info("No EOG components detected")
 
-        # Stage 5: Identify EMG components
-        logger.info("Stage 5: Identifying EMG components")
+        # Stage 5: Identify EMG components (automatic)
+        logger.info("Stage 5: Identifying EMG components (automatic)")
         emg_components = identify_emg_components(
             ica,
             raw_filtered,
             freq_threshold=20.0,
             power_ratio_threshold=config.ica.emg_threshold,
         )
-
-        # Stage 6: Apply ICA (exclude artifacts)
-        artifact_components = sorted(list(set(eog_components + emg_components)))
+        if emg_components:
+            logger.info(f"EMG components detected: {emg_components}")
+        else:
+            logger.info("No EMG components detected")
+        
+        # Combine automatic detections
+        artifact_components_auto = sorted(list(set(eog_components + emg_components)))
+        
+        # Stage 5b: Interactive component inspection (if enabled)
+        if interactive_bad_channel_detection:
+            logger.info("=" * 80)
+            logger.info("Stage 5b: INTERACTIVE ICA COMPONENT INSPECTION")
+            logger.info("=" * 80)
+            logger.info("Automatic artifact detection found:")
+            logger.info(f"  EOG components: {eog_components}")
+            logger.info(f"  EMG components: {emg_components}")
+            logger.info(f"  Total automatic: {artifact_components_auto}")
+            logger.info("")
+            logger.info("Opening interactive plots for manual component inspection...")
+            logger.info("")
+            logger.info("Instructions:")
+            logger.info("  1. Component topographies window will open")
+            logger.info("  2. Click on component numbers to TOGGLE exclusion (red = excluded)")
+            logger.info("  3. Automatic suggestions are already marked in red")
+            logger.info("  4. Click to add/remove components from exclusion list")
+            logger.info("  5. Close the window when done to continue")
+            logger.info("")
+            logger.info("  Alternative: Component sources window")
+            logger.info("  - Right-click on component name to mark as artifact")
+            logger.info("  - Marked components will be excluded")
+            logger.info("=" * 80)
+            
+            # Pre-mark automatic suggestions
+            ica.exclude = artifact_components_auto.copy()
+            
+            # Plot component topographies with interactive selection
+            # User can click on components to toggle exclusion
+            try:
+                fig = ica.plot_components(
+                    picks=range(min(20, ica.n_components_)),
+                    show=True,
+                    inst=raw_filtered
+                )
+                logger.info("Component topographies displayed. Close window to continue.")
+            except Exception as e:
+                logger.warning(f"Could not plot component topographies: {e}")
+            
+            # Plot component sources with interactive selection
+            try:
+                fig = ica.plot_sources(
+                    raw_filtered,
+                    show=True,
+                    block=True,  # Wait for user to close
+                    title='ICA Components - Right-click to mark as artifact'
+                )
+                logger.info("Component sources displayed. Close window to continue.")
+            except Exception as e:
+                logger.warning(f"Could not plot component sources: {e}")
+            
+            # Get final exclusion list after user interaction
+            artifact_components = ica.exclude.copy()
+            
+            # Log changes
+            added_components = set(artifact_components) - set(artifact_components_auto)
+            removed_components = set(artifact_components_auto) - set(artifact_components)
+            
+            logger.info("=" * 80)
+            if added_components:
+                logger.info(f"User ADDED components to exclude: {sorted(list(added_components))}")
+            if removed_components:
+                logger.info(f"User REMOVED components from exclusion: {sorted(list(removed_components))}")
+            if not added_components and not removed_components:
+                logger.info("User kept automatic suggestions")
+            
+            logger.info(f"Final components to exclude: {sorted(artifact_components)}")
+            logger.info("=" * 80)
+        else:
+            # Use automatic detection only
+            artifact_components = artifact_components_auto
+            ica.exclude = artifact_components
         
         # Safety check: don't remove too many components
-        max_components_to_remove = min(5, ica.n_components_ // 2)
-        if len(artifact_components) > max_components_to_remove:
+        max_components_to_remove = min(10, ica.n_components_ // 2)
+        if len(ica.exclude) > max_components_to_remove:
             logger.warning(
-                f"Too many artifact components detected ({len(artifact_components)}), "
+                f"Too many artifact components selected ({len(ica.exclude)}), "
                 f"limiting to {max_components_to_remove} to preserve signal"
             )
-            artifact_components = artifact_components[:max_components_to_remove]
+            ica.exclude = ica.exclude[:max_components_to_remove]
         
+        # Stage 6: Apply ICA (exclude artifacts)
         logger.info(
-            f"Stage 6: Applying ICA (excluding {len(artifact_components)} components: "
-            f"{artifact_components})"
+            f"Stage 6: Applying ICA (excluding {len(ica.exclude)} components: "
+            f"{sorted(ica.exclude)})"
         )
-        ica.exclude = artifact_components
         raw_clean = ica.apply(raw_filtered.copy())
 
         # Save ICA object if path provided

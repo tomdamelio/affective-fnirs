@@ -55,9 +55,69 @@ Todos los comandos Python deben ejecutarse usando `micromamba run`:
 ```powershell
 # Ejecutar un script de prueba suelto
 micromamba run -n affective-fnirs python tests/mi_script.py
-
-
 ```
+
+### Pipeline de Análisis
+
+El script principal `scripts/run_analysis.py` ejecuta el pipeline completo de análisis multimodal (EEG + fNIRS).
+
+#### Ejecución Completa
+
+```powershell
+# Análisis completo (preprocesamiento + análisis)
+micromamba run -n affective-fnirs python scripts/run_analysis.py --config configs/sub-010.yml
+```
+
+#### Flujo de Trabajo Incremental
+
+El pipeline guarda datos intermedios para permitir iteraciones rápidas:
+
+**1. Primera ejecución (preprocesamiento completo con inspecciones interactivas):**
+```powershell
+micromamba run -n affective-fnirs python scripts/run_analysis.py --config configs/sub-010.yml
+```
+- Inspección visual de canales malos (después de filtrado)
+- Rechazo de épocas malas (antes de ICA)
+- Selección interactiva de componentes ICA
+- Guarda: `*_desc-preprocessed_eeg.fif`, `*_desc-cleaned_epo.fif`, `*_ica.fif`
+
+**2. Cargar datos preprocesados Y épocas limpias (saltar TODO el preprocesamiento interactivo):**
+```powershell
+micromamba run -n affective-fnirs python scripts/run_analysis.py --config configs/sub-010.yml --load-preprocessed
+```
+- Carga datos preprocesados Y épocas limpias
+- Ejecuta solo: TFR → ERD/ERS
+- **No requiere interacción del usuario**
+- Útil para iterar sobre parámetros de análisis espectral
+
+**3. Cargar épocas limpias (equivalente a --load-preprocessed para EEG):**
+```powershell
+micromamba run -n affective-fnirs python scripts/run_analysis.py --config configs/sub-010.yml --load-epochs
+```
+- Mismo comportamiento que `--load-preprocessed` para análisis EEG
+- Carga épocas ya limpias y objeto ICA
+- Ejecuta solo: TFR → ERD/ERS
+
+#### Archivos Guardados
+
+El pipeline guarda automáticamente:
+- `sub-{id}_ses-{session}_task-{task}_desc-preprocessed_eeg.fif` - EEG preprocesado (filtrado, CAR)
+- `sub-{id}_ses-{session}_task-{task}_desc-preprocessed_fnirs.fif` - fNIRS preprocesado
+- `sub-{id}_ses-{session}_task-{task}_desc-cleaned_epo.fif` - Épocas limpias (post-ICA)
+- `sub-{id}_ses-{session}_task-{task}_ica.fif` - Objeto ICA (para referencia)
+
+#### Otros Flags
+
+```powershell
+# Solo reporte de calidad (QA)
+micromamba run -n affective-fnirs python scripts/run_analysis.py --config configs/sub-010.yml --qa-only
+
+# Deshabilitar modalidades específicas
+micromamba run -n affective-fnirs python scripts/run_analysis.py --config configs/sub-010.yml --eeg false
+micromamba run -n affective-fnirs python scripts/run_analysis.py --config configs/sub-010.yml --fnirs false
+```
+
+
 
 ## Contenido del Repositorio
 

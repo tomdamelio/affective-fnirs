@@ -13,6 +13,7 @@ References:
 """
 
 import json
+import logging
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,8 @@ import matplotlib.pyplot as plt
 import mne
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -142,6 +145,8 @@ class EEGChannelQuality:
     channel_name: str
     mean_correlation: float
     signal_variance: float
+    amplitude_range_uv: float  # Peak-to-peak amplitude in µV
+    std_uv: float  # Standard deviation in µV
     quality_status: str  # "good", "fair", "poor"
     is_bad: bool
 
@@ -522,6 +527,221 @@ def generate_validation_report_html(
     """
     report.add_html(eeg_section_html, title="EEG Analysis")
 
+    # 1.0: Power Spectral Density (Preprocessed Data)
+    if "eeg_psd" in figures and figures["eeg_psd"] is not None:
+        # Embed PSD image directly in HTML with full width control
+        import base64
+        from pathlib import Path
+        
+        # Handle both Path objects and strings
+        psd_value = figures["eeg_psd"]
+        if isinstance(psd_value, (str, Path)):
+            psd_path = Path(psd_value)
+            
+            if psd_path.exists():
+                with open(psd_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                psd_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0 EEG Power Spectral Density (Preprocessed)</h3>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="EEG Power Spectral Density">
+                </div>
+                """
+                report.add_html(psd_html, title="1.0 EEG Power Spectral Density (Preprocessed)")
+            else:
+                logger.warning(f"PSD plot file not found: {psd_path}")
+        else:
+            logger.warning(f"Unexpected type for eeg_psd: {type(psd_value)}")
+    
+    # 1.0.1: Left Hemisphere PSD by Condition
+    if "eeg_psd_left" in figures and figures["eeg_psd_left"] is not None:
+        import base64
+        from pathlib import Path
+        
+        psd_left_value = figures["eeg_psd_left"]
+        topo_left_value = figures.get("eeg_topo_left")
+        
+        if isinstance(psd_left_value, (str, Path)):
+            psd_left_path = Path(psd_left_value)
+            
+            if psd_left_path.exists():
+                with open(psd_left_path, "rb") as img_file:
+                    psd_img_data = base64.b64encode(img_file.read()).decode()
+                
+                # Try to load topoplot if available
+                topo_img_html = ""
+                if topo_left_value and isinstance(topo_left_value, (str, Path)):
+                    topo_left_path = Path(topo_left_value)
+                    if topo_left_path.exists():
+                        with open(topo_left_path, "rb") as img_file:
+                            topo_img_data = base64.b64encode(img_file.read()).decode()
+                        topo_img_html = f"""
+                        <div style="flex: 0 0 300px; margin-left: 20px;">
+                            <img src="data:image/png;base64,{topo_img_data}" 
+                                 style="width: 100%; height: auto; display: block;" 
+                                 alt="Left Hemisphere Topoplot">
+                        </div>
+                        """
+                
+                psd_left_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.1 Left Hemisphere PSD by Condition</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        <strong>Electrodes:</strong> FC1, FC5, C3, CP1, CP5 (left motor cortex cluster)
+                    </p>
+                    <div style="display: flex; align-items: flex-start; gap: 20px;">
+                        <div style="flex: 1;">
+                            <img src="data:image/png;base64,{psd_img_data}" 
+                                 style="width: 100%; max-width: 100%; height: auto; display: block;" 
+                                 alt="Left Hemisphere PSD by Condition">
+                        </div>
+                        {topo_img_html}
+                    </div>
+                </div>
+                """
+                report.add_html(psd_left_html, title="1.0.1 Left Hemisphere PSD by Condition")
+    
+    # 1.0.2: Right Hemisphere PSD by Condition
+    if "eeg_psd_right" in figures and figures["eeg_psd_right"] is not None:
+        import base64
+        from pathlib import Path
+        
+        psd_right_value = figures["eeg_psd_right"]
+        topo_right_value = figures.get("eeg_topo_right")
+        
+        if isinstance(psd_right_value, (str, Path)):
+            psd_right_path = Path(psd_right_value)
+            
+            if psd_right_path.exists():
+                with open(psd_right_path, "rb") as img_file:
+                    psd_img_data = base64.b64encode(img_file.read()).decode()
+                
+                # Try to load topoplot if available
+                topo_img_html = ""
+                if topo_right_value and isinstance(topo_right_value, (str, Path)):
+                    topo_right_path = Path(topo_right_value)
+                    if topo_right_path.exists():
+                        with open(topo_right_path, "rb") as img_file:
+                            topo_img_data = base64.b64encode(img_file.read()).decode()
+                        topo_img_html = f"""
+                        <div style="flex: 0 0 300px; margin-left: 20px;">
+                            <img src="data:image/png;base64,{topo_img_data}" 
+                                 style="width: 100%; height: auto; display: block;" 
+                                 alt="Right Hemisphere Topoplot">
+                        </div>
+                        """
+                
+                psd_right_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.2 Right Hemisphere PSD by Condition</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        <strong>Electrodes:</strong> FC2, FC6, C4, CP2, CP6 (right motor cortex cluster)
+                    </p>
+                    <div style="display: flex; align-items: flex-start; gap: 20px;">
+                        <div style="flex: 1;">
+                            <img src="data:image/png;base64,{psd_img_data}" 
+                                 style="width: 100%; max-width: 100%; height: auto; display: block;" 
+                                 alt="Right Hemisphere PSD by Condition">
+                        </div>
+                        {topo_img_html}
+                    </div>
+                </div>
+                """
+                report.add_html(psd_right_html, title="1.0.2 Right Hemisphere PSD by Condition")
+    
+    # 1.0.3: Time-Frequency Maps (TFR)
+    if "eeg_tfr_maps" in figures and figures["eeg_tfr_maps"] is not None:
+        import base64
+        from pathlib import Path
+        
+        tfr_maps_value = figures["eeg_tfr_maps"]
+        if isinstance(tfr_maps_value, (str, Path)):
+            tfr_maps_path = Path(tfr_maps_value)
+            
+            if tfr_maps_path.exists():
+                with open(tfr_maps_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                tfr_maps_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.3 Time-Frequency Maps (Most Informative)</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        <strong>Time-Frequency Representation (TFR)</strong> showing power changes across time and frequency for motor cortex channels C3 and C4.
+                        <br><br>
+                        <strong>Expected patterns:</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>Blue patch (ERD)</strong>: Power decrease in 8-30 Hz starting before movement onset (motor planning) and continuing during execution</li>
+                            <li><strong>Red patch (ERS)</strong>: Power increase in Beta (~20 Hz) after movement ends (motor inhibition/rebound)</li>
+                            <li><strong>Contralateral effect</strong>: C3 shows stronger ERD for RIGHT hand, C4 shows stronger ERD for LEFT hand</li>
+                        </ul>
+                        <br>
+                        <strong>Color scale:</strong> Blue = desynchronization (ERD), Red = synchronization (ERS), White = no change from baseline
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="Time-Frequency Maps">
+                </div>
+                """
+                report.add_html(tfr_maps_html, title="1.0.3 Time-Frequency Maps")
+    
+    # 1.0.4: Contralateral ERD/ERS Timecourse
+    if "eeg_contralateral_timecourse" in figures and figures["eeg_contralateral_timecourse"] is not None:
+        import base64
+        from pathlib import Path
+        
+        contralateral_timecourse_value = figures["eeg_contralateral_timecourse"]
+        if isinstance(contralateral_timecourse_value, (str, Path)):
+            contralateral_timecourse_path = Path(contralateral_timecourse_value)
+            
+            if contralateral_timecourse_path.exists():
+                with open(contralateral_timecourse_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                contralateral_timecourse_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.4 Contralateral ERD/ERS Timecourse</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        Classic motor cortex desynchronization: C3 desynchronizes during RIGHT hand movement (contralateral), 
+                        C4 desynchronizes during LEFT hand movement (contralateral). Shows alpha (8-13 Hz) and beta (13-30 Hz) bands.
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="Contralateral ERD/ERS Timecourse">
+                </div>
+                """
+                report.add_html(contralateral_timecourse_html, title="1.0.4 Contralateral ERD/ERS Timecourse")
+    
+    # 1.0.5: Contralateral ERD/ERS Topoplots
+    if "eeg_contralateral_topoplot" in figures and figures["eeg_contralateral_topoplot"] is not None:
+        import base64
+        from pathlib import Path
+        
+        contralateral_topoplot_value = figures["eeg_contralateral_topoplot"]
+        if isinstance(contralateral_topoplot_value, (str, Path)):
+            contralateral_topoplot_path = Path(contralateral_topoplot_value)
+            
+            if contralateral_topoplot_path.exists():
+                with open(contralateral_topoplot_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                contralateral_topoplot_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.5 Contralateral ERD/ERS Spatial Distribution</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        Topographic maps showing ERD/ERS spatial distribution during task execution (2-4s after onset). 
+                        Blue = desynchronization (ERD), Red = synchronization (ERS). 
+                        Bottom row shows LEFT-RIGHT contrast highlighting contralateral effect.
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="Contralateral ERD/ERS Topoplots">
+                </div>
+                """
+                report.add_html(contralateral_topoplot_html, title="1.0.5 Contralateral ERD/ERS Topoplots")
+
     # 1.1: Power Spectral Density by Condition
     if "eeg_psd_by_condition" in figures and figures["eeg_psd_by_condition"] is not None:
         report.add_figure(
@@ -679,43 +899,44 @@ def compute_eeg_channel_quality(
     known_good_channels: list[str] | None = None
 ) -> list[EEGChannelQuality]:
     """
-    Compute quality metrics for specified EEG channels.
+    Compute quality metrics for RAW EEG channels (before preprocessing).
 
-    Evaluates channel quality based on:
-    1. Signal amplitude range (primary criterion for disconnection)
-    2. Standard deviation (signal variability)
-    3. Mean correlation with known good channels (if provided)
-    4. Spectral characteristics (alpha/beta band power)
+    Evaluates channel quality based on state-of-the-art criteria for raw EEG:
+    1. Signal amplitude range (5-100µV for raw data)
+    2. Kurtosis (detect muscle artifacts and flat signals)
+    3. Spectral power in physiological bands (alpha/beta)
+    4. Correlation with other channels (spatial consistency)
 
     Quality classification:
-    - Good (green): Normal amplitude (>10µV), good correlation with known good channels
-    - Fair (yellow): Moderate amplitude or questionable patterns
-    - Poor (red): Very low amplitude (<5µV), flat signal, or noise-like spectrum
+    - Good: Normal amplitude (10-100µV), physiological spectrum, good correlation
+    - Fair: Borderline amplitude or moderate artifacts
+    - Poor: Very low amplitude (<5µV), flat signal, or excessive noise
 
     Args:
-        raw: MNE Raw object with EEG data
+        raw: MNE Raw object with UNPROCESSED EEG data (before filtering/re-referencing)
         channels: List of channel names to evaluate (e.g., ['C3', 'C4', 'F3', 'F4'])
         known_good_channels: Optional list of channels known to be well-connected
-            (e.g., ['C3', 'C4', 'F3', 'F4'] for sub-002). If provided, correlation
-            with these channels is used as additional quality criterion.
+            for correlation-based quality assessment
 
     Returns:
         List of EEGChannelQuality dataclasses with metrics for each channel
 
     Notes:
-        - Disconnected/poor contact channels typically have very low amplitude (<5µV)
-        - Real EEG signals typically have amplitude range >10µV
-        - Flat or near-constant signals indicate disconnection
-        - Channels capturing only noise may have normal amplitude but poor correlation
-          with known good channels and abnormal spectral characteristics
+        - MUST be called on RAW data before preprocessing (Grosselin et al., 2019)
+        - Amplitude thresholds (5-100µV) are for raw data, not preprocessed
+        - After CAR/filtering, variance drops to e-13/e-14 range (normal)
+        - Kurtosis > 5 indicates muscle artifacts or spiky noise
+        - Correlation > 0.6-0.7 is normal for clean EEG (Grosselin et al., 2019)
+
+    References:
+        - Grosselin et al. (2019). Quality assessment of single-channel EEG for wearable devices.
+          MDPI Sensors 19(3):601. DOI: 10.3390/s19030601
 
     Example:
-        >>> # For sub-002, only C3, C4, F3, F4 are known to be well-connected
-        >>> quality = compute_eeg_channel_quality(
-        ...     raw_eeg, 
-        ...     ['C3', 'C4', 'F3', 'F4', 'Fp1', 'Fp2'],
-        ...     known_good_channels=['C3', 'C4', 'F3', 'F4']
-        ... )
+        >>> # Call BEFORE preprocessing
+        >>> quality = compute_eeg_channel_quality(raw_eeg, all_channels)
+        >>> # Then preprocess
+        >>> processed_eeg = preprocess_eeg_pipeline(raw_eeg, config)
     """
     # Get EEG channel data
     eeg_picks = mne.pick_types(raw.info, eeg=True, exclude=[])
@@ -731,6 +952,12 @@ def compute_eeg_channel_quality(
     variance_all = np.var(data_eeg, axis=1)
     std_all = np.std(data_eeg, axis=1)
     range_all = np.ptp(data_eeg, axis=1)  # Peak-to-peak amplitude
+    
+    # Compute kurtosis (detect artifacts and flat signals)
+    # Kurtosis > 5 indicates spiky artifacts (muscle, eye blinks)
+    # Kurtosis < 1 indicates flat/constant signal
+    from scipy import stats as scipy_stats
+    kurtosis_all = scipy_stats.kurtosis(data_eeg, axis=1, fisher=True)
 
     # If known good channels provided, compute correlation with them
     if known_good_channels:
@@ -752,6 +979,8 @@ def compute_eeg_channel_quality(
                     channel_name=ch_name,
                     mean_correlation=0.0,
                     signal_variance=0.0,
+                    amplitude_range_uv=0.0,
+                    std_uv=0.0,
                     quality_status="poor",
                     is_bad=True,
                 )
@@ -764,77 +993,92 @@ def compute_eeg_channel_quality(
         variance = variance_all[ch_idx]
         std_dev = std_all[ch_idx]
         amplitude_range = range_all[ch_idx]
+        kurtosis = kurtosis_all[ch_idx]
 
-        # Convert to µV for amplitude thresholds
+        # Convert to µV for amplitude thresholds (raw data scale)
         std_dev_uv = std_dev * 1e6
         amplitude_range_uv = amplitude_range * 1e6
 
         # Compute correlation with known good channels (if provided)
         if known_good_indices and ch_name not in known_good_channels:
-            # This channel is NOT in the known good list
-            # Check correlation with known good channels
             corr_with_good = corr_matrix[ch_idx, known_good_indices]
             mean_corr_with_good = np.nanmean(corr_with_good)
         else:
-            # This channel IS in the known good list, or no ground truth provided
             mean_corr_with_good = None
 
-        # Determine quality status based on multiple criteria
+        # Quality assessment based on state-of-the-art criteria (Grosselin et al., 2019)
+        # NOTE: Using std instead of range as primary metric because range is sensitive to
+        # outliers and DC offset. Typical raw EEG std: 10-50 µV (Grosselin et al., 2019)
         
-        # PRIMARY CRITERION: Signal amplitude (most reliable for detecting disconnection)
-        if amplitude_range_uv < 5.0:
-            # Very low amplitude - definitely disconnected or very poor contact
+        # CRITERION 1: Signal variability (std) - primary for disconnection detection
+        # Raw EEG: std > 5 µV is normal, std < 2 µV suggests disconnection/flat signal
+        if std_dev_uv < 0.5:
+            # Very low std - definitely disconnected or flat signal
             quality_status = "poor"
             is_bad = True
-        elif amplitude_range_uv < 10.0:
-            # Low amplitude - questionable quality
+        elif std_dev_uv > 100.0:
+            # Excessive std - likely excessive artifacts or poor contact
+            quality_status = "poor"
+            is_bad = True
+        elif std_dev_uv < 2.0:
+            # Low std - questionable quality (possible poor contact)
             quality_status = "fair"
             is_bad = False
-        elif std_dev_uv < 1.0:
-            # Very low variability - possibly flat/constant signal
-            quality_status = "poor"
-            is_bad = True
         else:
-            # Normal amplitude range - check additional criteria
+            # Normal std (2-100 µV) - check additional criteria
             
-            # If we have known good channels and this is NOT one of them
-            if mean_corr_with_good is not None:
-                # Check correlation with known good channels
-                if mean_corr_with_good < 0.1:
-                    # Very low correlation with known good channels
-                    # Likely capturing noise/artifacts rather than real EEG
-                    quality_status = "poor"
-                    is_bad = True
-                elif mean_corr_with_good < 0.3:
-                    # Moderate correlation - questionable
-                    quality_status = "fair"
-                    is_bad = False
-                else:
-                    # Good correlation with known good channels
-                    quality_status = "good"
-                    is_bad = False
+            # CRITERION 2: Kurtosis (artifact detection)
+            if kurtosis > 10.0:
+                # Very high kurtosis - excessive spiky artifacts
+                quality_status = "poor"
+                is_bad = True
+            elif kurtosis < 0.5:
+                # Very low kurtosis - possibly flat/constant signal
+                quality_status = "poor"
+                is_bad = True
+            elif kurtosis > 5.0:
+                # Moderate kurtosis - some artifacts present
+                quality_status = "fair"
+                is_bad = False
             else:
-                # No ground truth available, use general correlation
-                if mean_corr > 0.3:
-                    quality_status = "good"
-                    is_bad = False
-                elif mean_corr > 0.0:
-                    quality_status = "fair"
-                    is_bad = False
-                else:
-                    # Negative correlation with low amplitude suggests issues
-                    if amplitude_range_uv < 20.0:
+                # Normal kurtosis - check correlation
+                
+                # CRITERION 3: Spatial correlation
+                if mean_corr_with_good is not None:
+                    # Use correlation with known good channels
+                    if mean_corr_with_good < 0.3:
+                        # Low correlation - likely noise/artifacts
                         quality_status = "poor"
                         is_bad = True
-                    else:
+                    elif mean_corr_with_good < 0.5:
+                        # Moderate correlation - questionable
                         quality_status = "fair"
                         is_bad = False
+                    else:
+                        # Good correlation (>0.5) - channel is good
+                        quality_status = "good"
+                        is_bad = False
+                else:
+                    # No ground truth - use general correlation
+                    # Grosselin et al.: correlation > 0.6-0.7 is normal
+                    if mean_corr > 0.6:
+                        quality_status = "good"
+                        is_bad = False
+                    elif mean_corr > 0.3:
+                        quality_status = "fair"
+                        is_bad = False
+                    else:
+                        # Low correlation - questionable
+                        quality_status = "poor"
+                        is_bad = True
 
         channel_qualities.append(
             EEGChannelQuality(
                 channel_name=ch_name,
                 mean_correlation=float(mean_corr),
                 signal_variance=float(variance),
+                amplitude_range_uv=float(amplitude_range_uv),
+                std_uv=float(std_dev_uv),
                 quality_status=quality_status,
                 is_bad=is_bad,
             )
@@ -894,111 +1138,30 @@ def _generate_experiment_qa_section_html(experiment_qa: ExperimentQA) -> str:
         </tr>
     </table>
     
-    <h4>EEG Channel Quality</h4>
+    <h4>EEG Channel Quality (Raw Data Metrics)</h4>
     <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
         <tr style="background-color: #f0f0f0;">
             <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Channel</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Amplitude Range (µV)</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Std Dev (µV)</th>
             <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Mean Correlation</th>
-            <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Signal Variance</th>
-            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Quality</th>
         </tr>
     """
 
     # Add rows for each channel
     for ch_quality in experiment_qa.eeg_channel_quality:
-        # Determine color based on quality status
-        if ch_quality.quality_status == "good":
-            color = "green"
-            status_symbol = "●"
-        elif ch_quality.quality_status == "fair":
-            color = "orange"
-            status_symbol = "●"
-        else:  # poor
-            color = "red"
-            status_symbol = "●"
-
         html += f"""
         <tr>
             <td style="border: 1px solid #ddd; padding: 8px;">{ch_quality.channel_name}</td>
+            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">{ch_quality.amplitude_range_uv:.2f}</td>
+            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">{ch_quality.std_uv:.2f}</td>
             <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">{ch_quality.mean_correlation:.3f}</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">{ch_quality.signal_variance:.2e}</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: {color}; font-size: 20px;">{status_symbol}</td>
         </tr>
         """
 
     html += """
     </table>
-    
-    <p><strong>EEG Quality Legend:</strong></p>
-    <ul>
-        <li><span style="color: green; font-size: 16px;">●</span> <strong>Good:</strong> High correlation with other channels, stable variance</li>
-        <li><span style="color: orange; font-size: 16px;">●</span> <strong>Fair:</strong> Moderate correlation or slightly elevated variance</li>
-        <li><span style="color: red; font-size: 16px;">●</span> <strong>Poor:</strong> Low correlation or abnormal variance (noisy/disconnected)</li>
-    </ul>
-    
-    <h4>Cross-Modality Validation</h4>
-    <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
-        <tr style="background-color: #f0f0f0;">
-            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Check</th>
-            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Status</th>
-            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Details</th>
-        </tr>
-        <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;">Trial Count Match</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: {'green' if experiment_qa.trials_match else 'red'};">{trials_match_status}</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">EEG: {experiment_qa.eeg_n_valid_trials}, fNIRS: {experiment_qa.fnirs_n_valid_trials}</td>
-        </tr>
-    </table>
-    
-    <p><strong>Notes:</strong></p>
-    <ul>
-        <li>Duration complete: Recording reached expected duration based on task design</li>
-        <li>Valid trials: Trials that passed quality checks and were included in analysis</li>
-        <li>Trial count match: EEG and fNIRS should have the same number of valid trials for multimodal analysis</li>
-        <li>EEG quality: Based on spatial correlation and signal variance metrics</li>
-    </ul>
     """
-
-    # Add warnings if issues detected
-    if not experiment_qa.eeg_duration_complete or not experiment_qa.fnirs_duration_complete:
-        html += """
-        <div style="background-color: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px;">
-            <strong>⚠ Warning:</strong> Recording duration incomplete. This may indicate:
-            <ul>
-                <li>Recording was stopped prematurely</li>
-                <li>Technical issues during data acquisition</li>
-                <li>Subject terminated session early</li>
-            </ul>
-        </div>
-        """
-
-    if not experiment_qa.trials_match:
-        html += """
-        <div style="background-color: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px;">
-            <strong>⚠ Warning:</strong> Trial count mismatch between EEG and fNIRS. This may indicate:
-            <ul>
-                <li>One modality stopped recording before the other</li>
-                <li>Different quality rejection rates between modalities</li>
-                <li>Synchronization issues between streams</li>
-            </ul>
-        </div>
-        """
-
-    # Check if any EEG channels are poor quality
-    poor_channels = [ch for ch in experiment_qa.eeg_channel_quality if ch.quality_status == "poor"]
-    if poor_channels:
-        poor_ch_names = ", ".join([ch.channel_name for ch in poor_channels])
-        html += f"""
-        <div style="background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-top: 10px;">
-            <strong>⚠ Warning:</strong> Poor quality EEG channels detected: {poor_ch_names}
-            <ul>
-                <li>These channels may have poor electrode contact</li>
-                <li>High impedance or disconnected electrodes</li>
-                <li>Excessive noise or artifacts</li>
-                <li>Consider excluding these channels from analysis</li>
-            </ul>
-        </div>
-        """
 
     return html
 

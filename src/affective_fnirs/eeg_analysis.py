@@ -1742,3 +1742,194 @@ def plot_psd_by_condition(
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     
     return fig
+
+
+
+def plot_eeg_psd_comparison(
+    raw_before: mne.io.Raw,
+    raw_after: mne.io.Raw,
+    fmin: float = 1.0,
+    fmax: float = 50.0,
+    figsize: tuple[float, float] = (14, 10),
+    output_path: str | None = None,
+) -> plt.Figure:
+    """
+    Plot Power Spectral Density (PSD) comparison before and after preprocessing.
+
+    Creates a multi-panel figure showing PSD for all EEG channels in two conditions:
+    1. Before preprocessing (raw data)
+    2. After preprocessing (filtered, re-referenced, ICA-cleaned)
+
+    This visualization helps assess:
+    - Signal quality improvements from preprocessing
+    - Effectiveness of artifact removal (50/60 Hz line noise, muscle artifacts)
+    - Preservation of physiological signals (alpha, beta bands)
+    - Channel-specific issues (flat channels, excessive noise)
+
+    Args:
+        raw_before: MNE Raw object BEFORE preprocessing (raw data)
+        raw_after: MNE Raw object AFTER preprocessing (filtered, re-referenced)
+        fmin: Minimum frequency for PSD (Hz, default 1.0)
+        fmax: Maximum frequency for PSD (Hz, default 50.0)
+        figsize: Figure size (width, height) in inches
+        output_path: Optional path to save figure (PNG format)
+
+    Returns:
+        Matplotlib Figure object with PSD comparison
+
+    Notes:
+        - Uses Welch's method for PSD estimation (robust to noise)
+        - Plots all EEG channels in separate subplots
+        - Blue = before preprocessing, Orange = after preprocessing
+        - Vertical bands mark physiological frequency ranges:
+          * Delta (1-4 Hz): Sleep, deep relaxation
+          * Theta (4-8 Hz): Drowsiness, meditation
+          * Alpha (8-13 Hz): Relaxed wakefulness, eyes closed
+          * Beta (13-30 Hz): Active thinking, motor control
+          * Gamma (30-50 Hz): Cognitive processing
+        - Expected improvements after preprocessing:
+          * Reduced line noise (50/60 Hz peak should disappear)
+          * Reduced muscle artifacts (high-frequency noise)
+          * Preserved alpha/beta peaks (physiological signals)
+
+    Example:
+        >>> # Before preprocessing
+        >>> raw_before = raw_eeg.copy()
+        >>> # After preprocessing
+        >>> raw_after = preprocess_eeg_pipeline(raw_eeg, config)
+        >>> # Plot comparison
+        >>> fig = plot_eeg_psd_comparison(raw_before, raw_after)
+        >>> plt.show()
+
+    References:
+        - Welch (1967). The use of fast Fourier transform for the estimation of power spectra.
+        - MNE PSD: https://mne.tools/stable/generated/mne.io.Raw.html#mne.io.Raw.compute_psd
+
+    Requirements: User request for PSD visualization before/after preprocessing
+    """
+    logger.info("Plotting EEG PSD comparison (before vs after preprocessing)")
+
+    # Get EEG channel names
+    eeg_picks_before = mne.pick_types(raw_before.info, eeg=True, exclude=[])
+    eeg_channel_names = [raw_before.ch_names[i] for i in eeg_picks_before]
+    n_channels = len(eeg_channel_names)
+
+    # Compute PSD for both conditions using Welch's method
+    logger.info("Computing PSD for raw data (before preprocessing)...")
+    psd_before = raw_before.compute_psd(
+        method="welch",
+        fmin=fmin,
+        fmax=fmax,
+        picks="eeg",
+        n_fft=2048,
+        n_overlap=1024,
+        verbose=False,
+    )
+
+    logger.info("Computing PSD for preprocessed data (after preprocessing)...")
+    psd_after = raw_after.compute_psd(
+        method="welch",
+        fmin=fmin,
+        fmax=fmax,
+        picks="eeg",
+        n_fft=2048,
+        n_overlap=1024,
+        verbose=False,
+    )
+
+    # Extract PSD data
+    freqs = psd_before.freqs
+    psd_data_before = psd_before.get_data()  # Shape: (n_channels, n_freqs)
+    psd_data_after = psd_after.get_data()
+
+    # Convert to µV²/Hz for better interpretability
+    psd_data_before_uv = psd_data_before * 1e12  # V²/Hz to µV²/Hz
+    psd_data_after_uv = psd_data_after * 1e12
+
+    # Create figure with subplots (one per channel)
+    n_cols = 4
+    n_rows = int(np.ceil(n_channels / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, sharex=True, sharey=False)
+    axes = axes.flatten()
+
+    # Define frequency bands for annotation
+    bands = {
+        "Delta": (1, 4),
+        "Theta": (4, 8),
+        "Alpha": (8, 13),
+        "Beta": (13, 30),
+        "Gamma": (30, 50),
+    }
+    band_colors = {
+        "Delta": "#e8f4f8",
+        "Theta": "#d4e6f1",
+        "Alpha": "#aed6f1",
+        "Beta": "#85c1e9",
+        "Gamma": "#5dade2",
+    }
+
+    # Plot each channel
+    for i, ch_name in enumerate(eeg_channel_names):
+        ax = axes[i]
+
+        # Plot frequency bands as background
+        for band_name, (low, high) in bands.items():
+            ax.axvspan(low, high, alpha=0.2, color=band_colors[band_name], zorder=0)
+
+        # Plot PSD curves
+        ax.semilogy(
+            freqs,
+            psd_data_before_uv[i, :],
+            color="steelblue",
+            linewidth=1.5,
+            label="Before preprocessing",
+            alpha=0.8,
+        )
+        ax.semilogy(
+            freqs,
+            psd_data_after_uv[i, :],
+            color="darkorange",
+            linewidth=1.5,
+            label="After preprocessing",
+            alpha=0.8,
+        )
+
+        # Channel title
+        ax.set_title(ch_name, fontsize=10, fontweight="bold")
+
+        # Grid
+        ax.grid(True, alpha=0.3, linestyle="--")
+
+        # Legend (only for first subplot)
+        if i == 0:
+            ax.legend(loc="upper right", fontsize=8)
+
+        # Y-axis label (only for leftmost column)
+        if i % n_cols == 0:
+            ax.set_ylabel("Power (µV²/Hz)", fontsize=9)
+
+        # X-axis label (only for bottom row)
+        if i >= n_channels - n_cols:
+            ax.set_xlabel("Frequency (Hz)", fontsize=9)
+
+    # Hide unused subplots
+    for i in range(n_channels, len(axes)):
+        axes[i].axis("off")
+
+    # Overall title
+    fig.suptitle(
+        "EEG Power Spectral Density: Before vs After Preprocessing\n"
+        "Blue = Raw data, Orange = Preprocessed (filtered, re-referenced, ICA-cleaned)",
+        fontsize=14,
+        fontweight="bold",
+        y=0.995,
+    )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.99])
+
+    # Save if path provided
+    if output_path:
+        fig.savefig(output_path, dpi=300, bbox_inches="tight")
+        logger.info(f"PSD comparison saved to: {output_path}")
+
+    return fig

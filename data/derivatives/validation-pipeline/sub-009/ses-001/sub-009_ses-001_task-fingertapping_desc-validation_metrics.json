@@ -2,18 +2,18 @@
   "subject_id": "009",
   "session_id": "001",
   "task": "fingertapping",
-  "timestamp": "2026-01-14T17:27:26.904369",
+  "timestamp": "2026-01-16T04:53:58.752265",
   "erd_metrics": {
     "channel": "C3",
-    "alpha_erd_percent": -0.07144770661375992,
+    "alpha_erd_percent": -0.3383232669836894,
     "alpha_significant": false,
-    "beta_erd_percent": 1.3894278517027192,
+    "beta_erd_percent": -0.229425627991121,
     "beta_significant": false,
-    "beta_rebound_percent": 15.028386691067052,
-    "beta_rebound_observed": true
+    "beta_rebound_percent": -0.04625236910697906,
+    "beta_rebound_observed": false
   },
   "hrf_validation": {
-    "channel": "unknown",
+    "channel": "S6_D4 hbo",
     "onset_detected": false,
     "onset_time_sec": 0.0,
     "peak_plausible": false,
@@ -21,9 +21,9 @@
     "plateau_significant": false
   },
   "coupling_metrics": {
-    "max_correlation": 0.0,
-    "lag_seconds": 0.0,
-    "eeg_precedes_fnirs": false,
+    "max_correlation": NaN,
+    "lag_seconds": -27.993922263688805,
+    "eeg_precedes_fnirs": true,
     "correlation_adequate": false
   }
 }

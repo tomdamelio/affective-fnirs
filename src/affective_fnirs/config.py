@@ -223,7 +223,7 @@ class ICAConfig:
     """
 
     enabled: bool = True
-    n_components: int | float = 20
+    n_components: int | float = 0.99  # Use 99% variance explained for motor tasks
     random_state: int = 42
     max_iter: int = 1000
     eog_threshold: float = 0.9

@@ -17,6 +17,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - Dependencias ampliadas: cedalion, xarray, pyvista, pyxdf, scikit-learn
 - Script de verificación de imports (`scripts/verify_imports.py`)
 - Documentación de dudas del proyecto (`docs/DUDAS_PROYECTO.md`)
+- **Pipeline incremental**: Flags `--load-preprocessed` y `--load-epochs` para saltar etapas de preprocesamiento
+  - `--load-preprocessed`: Carga datos preprocesados, salta preprocesamiento
+  - `--load-epochs`: Carga épocas limpias, salta preprocesamiento + epoching + ICA
+  - Permite iteraciones rápidas sobre parámetros de análisis espectral
+- **Guardado automático**: Pipeline guarda datos intermedios (EEG preprocesado, épocas limpias, objeto ICA)
+- **Función `run_eeg_analysis_from_epochs()`**: Ejecuta solo TFR + ERD/ERS en épocas pre-limpias
 
 ### Changed
 - Reorganización de archivos de configuración a carpeta `configs/`

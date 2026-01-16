@@ -91,6 +91,855 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+def generate_tfr_maps(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate Time-Frequency Maps (TFR plots) for motor cortex channels.
+    
+    This is the most informative canonical plot for ERD/ERS analysis.
+    Shows power changes across time and frequency for C3 and C4 channels
+    during LEFT, RIGHT, and NOTHING conditions.
+    
+    Expected pattern:
+    - Blue patch (power decrease) in 8-30 Hz starting before movement onset
+    - Red patch (power increase) in Beta (~20 Hz) after movement ends
+    - Contralateral effect: C3 shows stronger ERD for RIGHT hand, C4 for LEFT hand
+    
+    Args:
+        epochs: MNE Epochs object with condition information
+        output_path: Directory to save plot
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Path to saved TFR map or None if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Check conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        has_nothing = any('NOTHING' in cond for cond in conditions)
+        
+        if not (has_left and has_right):
+            logger.warning("Need both LEFT and RIGHT conditions for TFR maps")
+            return None
+        
+        # Check channels
+        if 'C3' not in epochs.ch_names or 'C4' not in epochs.ch_names:
+            logger.warning("Need C3 and C4 channels for TFR maps")
+            return None
+        
+        logger.info("Generating Time-Frequency Maps (TFR plots)...")
+        
+        from affective_fnirs.eeg_analysis import compute_tfr
+        
+        # Frequency range: 4-40 Hz (covers theta, alpha, beta, low gamma)
+        freqs = np.arange(4, 41, 1)
+        
+        # Get conditions
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        nothing_cond = [c for c in conditions if 'NOTHING' in c][0] if has_nothing else None
+        
+        # Compute TFR for each condition
+        logger.info(f"Computing TFR for LEFT condition...")
+        tfr_left = compute_tfr(
+            epochs[left_cond],
+            freqs=freqs,
+            n_cycles=freqs / 2.0,  # Adaptive cycles for better resolution
+            baseline=(config.analysis.baseline_window_start_sec,
+                     config.analysis.baseline_window_end_sec),
+            baseline_mode="percent",
+        )
+        
+        logger.info(f"Computing TFR for RIGHT condition...")
+        tfr_right = compute_tfr(
+            epochs[right_cond],
+            freqs=freqs,
+            n_cycles=freqs / 2.0,
+            baseline=(config.analysis.baseline_window_start_sec,
+                     config.analysis.baseline_window_end_sec),
+            baseline_mode="percent",
+        )
+        
+        tfr_nothing = None
+        if nothing_cond:
+            logger.info(f"Computing TFR for NOTHING condition...")
+            tfr_nothing = compute_tfr(
+                epochs[nothing_cond],
+                freqs=freqs,
+                n_cycles=freqs / 2.0,
+                baseline=(config.analysis.baseline_window_start_sec,
+                         config.analysis.baseline_window_end_sec),
+                baseline_mode="percent",
+            )
+        
+        # Create figure: 2 rows (C3, C4) x 3 columns (LEFT, RIGHT, NOTHING)
+        n_cols = 3 if tfr_nothing else 2
+        fig, axes = plt.subplots(2, n_cols, figsize=(8*n_cols, 10))
+        
+        # Time window for display
+        tmin = -1.0
+        tmax = config.trials.task_duration_sec + 2.0
+        
+        # Color scale: compute adaptive limits based on actual data
+        # Collect all TFR data for C3 and C4 to determine appropriate color scale
+        c3_idx = tfr_left.ch_names.index('C3')
+        c4_idx = tfr_left.ch_names.index('C4')
+        
+        all_data = [
+            tfr_left.data[c3_idx, :, :],
+            tfr_left.data[c4_idx, :, :],
+            tfr_right.data[c3_idx, :, :],
+            tfr_right.data[c4_idx, :, :],
+        ]
+        if tfr_nothing:
+            all_data.extend([
+                tfr_nothing.data[c3_idx, :, :],
+                tfr_nothing.data[c4_idx, :, :],
+            ])
+        
+        all_data_concat = np.concatenate([d.flatten() for d in all_data])
+        
+        # Use percentiles to set color limits (more robust than min/max)
+        vmin = np.percentile(all_data_concat, 5)
+        vmax = np.percentile(all_data_concat, 95)
+        
+        # Ensure symmetric scale around 0 for better ERD/ERS visualization
+        vmax_abs = max(abs(vmin), abs(vmax))
+        vmin, vmax = -vmax_abs, vmax_abs
+        
+        # Cap at reasonable limits (±30%) to avoid extreme outliers
+        vmin = max(vmin, -30)
+        vmax = min(vmax, 30)
+        
+        logger.info(f"TFR color scale: {vmin:.1f}% to {vmax:.1f}%")
+        
+        # Row 1: C3 (Left Motor Cortex)
+        # C3 - LEFT hand
+        ch_idx = tfr_left.ch_names.index('C3')
+        im = axes[0, 0].imshow(
+            tfr_left.data[ch_idx, :, :],
+            aspect='auto',
+            origin='lower',
+            extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+            cmap='RdBu_r',
+            vmin=vmin,
+            vmax=vmax,
+        )
+        axes[0, 0].axvline(0, color='black', linestyle='--', linewidth=2, label='Movement onset')
+        axes[0, 0].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        axes[0, 0].set_xlim(tmin, tmax)
+        axes[0, 0].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+        axes[0, 0].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+        axes[0, 0].set_title('C3 (Left Motor Cortex) - LEFT Hand', fontsize=14, fontweight='bold')
+        axes[0, 0].legend(loc='upper right', fontsize=10)
+        
+        # C3 - RIGHT hand
+        im = axes[0, 1].imshow(
+            tfr_right.data[ch_idx, :, :],
+            aspect='auto',
+            origin='lower',
+            extent=[tfr_right.times[0], tfr_right.times[-1], freqs[0], freqs[-1]],
+            cmap='RdBu_r',
+            vmin=vmin,
+            vmax=vmax,
+        )
+        axes[0, 1].axvline(0, color='black', linestyle='--', linewidth=2)
+        axes[0, 1].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        axes[0, 1].set_xlim(tmin, tmax)
+        axes[0, 1].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+        axes[0, 1].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+        axes[0, 1].set_title('C3 (Left Motor Cortex) - RIGHT Hand (Contralateral)', fontsize=14, fontweight='bold')
+        
+        # C3 - NOTHING (if available)
+        if tfr_nothing:
+            im = axes[0, 2].imshow(
+                tfr_nothing.data[ch_idx, :, :],
+                aspect='auto',
+                origin='lower',
+                extent=[tfr_nothing.times[0], tfr_nothing.times[-1], freqs[0], freqs[-1]],
+                cmap='RdBu_r',
+                vmin=vmin,
+                vmax=vmax,
+            )
+            axes[0, 2].axvline(0, color='black', linestyle='--', linewidth=2)
+            axes[0, 2].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+            axes[0, 2].set_xlim(tmin, tmax)
+            axes[0, 2].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+            axes[0, 2].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+            axes[0, 2].set_title('C3 (Left Motor Cortex) - NOTHING (Baseline)', fontsize=14, fontweight='bold')
+        
+        # Row 2: C4 (Right Motor Cortex)
+        ch_idx = tfr_left.ch_names.index('C4')
+        
+        # C4 - LEFT hand
+        im = axes[1, 0].imshow(
+            tfr_left.data[ch_idx, :, :],
+            aspect='auto',
+            origin='lower',
+            extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+            cmap='RdBu_r',
+            vmin=vmin,
+            vmax=vmax,
+        )
+        axes[1, 0].axvline(0, color='black', linestyle='--', linewidth=2)
+        axes[1, 0].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        axes[1, 0].set_xlim(tmin, tmax)
+        axes[1, 0].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+        axes[1, 0].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+        axes[1, 0].set_title('C4 (Right Motor Cortex) - LEFT Hand (Contralateral)', fontsize=14, fontweight='bold')
+        
+        # C4 - RIGHT hand
+        im = axes[1, 1].imshow(
+            tfr_right.data[ch_idx, :, :],
+            aspect='auto',
+            origin='lower',
+            extent=[tfr_right.times[0], tfr_right.times[-1], freqs[0], freqs[-1]],
+            cmap='RdBu_r',
+            vmin=vmin,
+            vmax=vmax,
+        )
+        axes[1, 1].axvline(0, color='black', linestyle='--', linewidth=2)
+        axes[1, 1].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        axes[1, 1].set_xlim(tmin, tmax)
+        axes[1, 1].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+        axes[1, 1].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+        axes[1, 1].set_title('C4 (Right Motor Cortex) - RIGHT Hand', fontsize=14, fontweight='bold')
+        
+        # C4 - NOTHING (if available)
+        if tfr_nothing:
+            im = axes[1, 2].imshow(
+                tfr_nothing.data[ch_idx, :, :],
+                aspect='auto',
+                origin='lower',
+                extent=[tfr_nothing.times[0], tfr_nothing.times[-1], freqs[0], freqs[-1]],
+                cmap='RdBu_r',
+                vmin=vmin,
+                vmax=vmax,
+            )
+            axes[1, 2].axvline(0, color='black', linestyle='--', linewidth=2)
+            axes[1, 2].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+            axes[1, 2].set_xlim(tmin, tmax)
+            axes[1, 2].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+            axes[1, 2].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+            axes[1, 2].set_title('C4 (Right Motor Cortex) - NOTHING (Baseline)', fontsize=14, fontweight='bold')
+        
+        # Add colorbar
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+        cbar = fig.colorbar(im, cax=cbar_ax)
+        cbar.set_label('Power change (%)', fontsize=14, fontweight='bold')
+        cbar.ax.tick_params(labelsize=12)
+        
+        fig.suptitle('Time-Frequency Maps: Motor Cortex ERD/ERS', 
+                    fontsize=18, fontweight='bold', y=0.98)
+        fig.tight_layout(rect=[0, 0, 0.9, 0.96])
+        
+        # Save figure
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-tfr_maps.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"Time-Frequency Maps saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to generate TFR maps: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def generate_contralateral_erd_plots(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> tuple[Optional[Path], Optional[Path]]:
+    """
+    Generate classic ERD/ERS plots showing contralateral desynchronization.
+    
+    Creates two plots:
+    1. ERD/ERS timecourse for LEFT vs RIGHT hand movement in C3 and C4
+    2. Topoplots showing ERD/ERS spatial distribution during task
+    
+    This shows the classic effect: C3 desynchronizes during RIGHT hand movement,
+    C4 desynchronizes during LEFT hand movement (contralateral control).
+    
+    Args:
+        epochs: MNE Epochs object with condition information
+        output_path: Directory to save plots
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Tuple of (timecourse_path, topoplot_path) or (None, None) if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Check if we have LEFT and RIGHT conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        
+        if not (has_left and has_right):
+            logger.warning("Need both LEFT and RIGHT conditions for contralateral ERD plots")
+            return None, None
+        
+        # Check if C3 and C4 are available
+        if 'C3' not in epochs.ch_names or 'C4' not in epochs.ch_names:
+            logger.warning("Need C3 and C4 channels for contralateral ERD plots")
+            return None, None
+        
+        logger.info("Generating contralateral ERD/ERS plots...")
+        
+        # Compute TFR for each condition
+        from affective_fnirs.eeg_analysis import compute_tfr
+        
+        freqs = np.arange(8, 31, 1)  # Focus on alpha (8-13 Hz) and beta (13-30 Hz)
+        
+        # Get LEFT, RIGHT, and NOTHING epochs
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        nothing_cond = [c for c in conditions if 'NOTHING' in c][0] if any('NOTHING' in c for c in conditions) else None
+        
+        epochs_left = epochs[left_cond]
+        epochs_right = epochs[right_cond]
+        epochs_nothing = epochs[nothing_cond] if nothing_cond else None
+        
+        logger.info(f"Computing TFR for LEFT condition ({len(epochs_left)} epochs)...")
+        tfr_left = compute_tfr(
+            epochs_left,
+            freqs=freqs,
+            n_cycles=7.0,
+            baseline=(config.analysis.baseline_window_start_sec,
+                     config.analysis.baseline_window_end_sec),
+            baseline_mode="percent",
+        )
+        
+        logger.info(f"Computing TFR for RIGHT condition ({len(epochs_right)} epochs)...")
+        tfr_right = compute_tfr(
+            epochs_right,
+            freqs=freqs,
+            n_cycles=7.0,
+            baseline=(config.analysis.baseline_window_start_sec,
+                     config.analysis.baseline_window_end_sec),
+            baseline_mode="percent",
+        )
+        
+        tfr_nothing = None
+        if epochs_nothing is not None and len(epochs_nothing) > 0:
+            logger.info(f"Computing TFR for NOTHING condition ({len(epochs_nothing)} epochs)...")
+            tfr_nothing = compute_tfr(
+                epochs_nothing,
+                freqs=freqs,
+                n_cycles=7.0,
+                baseline=(config.analysis.baseline_window_start_sec,
+                         config.analysis.baseline_window_end_sec),
+                baseline_mode="percent",
+            )
+        
+        # =====================================================================
+        # Plot 1: ERD/ERS Timecourse (C3 and C4 for LEFT vs RIGHT)
+        # =====================================================================
+        fig, axes = plt.subplots(2, 2, figsize=(20, 16))
+        
+        # Define frequency bands
+        alpha_band = (config.analysis.alpha_band_low_hz, config.analysis.alpha_band_high_hz)
+        beta_band = (config.analysis.beta_band_low_hz, config.analysis.beta_band_high_hz)
+        
+        # Helper function to extract band power timecourse
+        def extract_band_power(tfr, channel, freq_band):
+            ch_idx = tfr.ch_names.index(channel)
+            freq_mask = (tfr.freqs >= freq_band[0]) & (tfr.freqs <= freq_band[1])
+            # Average across frequency band
+            band_power = tfr.data[ch_idx, freq_mask, :].mean(axis=0)
+            return band_power
+        
+        # C3 Alpha - LEFT vs RIGHT vs NOTHING
+        ax = axes[0, 0]
+        c3_alpha_left = extract_band_power(tfr_left, 'C3', alpha_band)
+        c3_alpha_right = extract_band_power(tfr_right, 'C3', alpha_band)
+        ax.plot(tfr_left.times, c3_alpha_left, linewidth=3, label='LEFT hand', color='#1f77b4')
+        ax.plot(tfr_right.times, c3_alpha_right, linewidth=3, label='RIGHT hand (contralateral)', color='#ff7f0e')
+        if tfr_nothing is not None:
+            c3_alpha_nothing = extract_band_power(tfr_nothing, 'C3', alpha_band)
+            ax.plot(tfr_nothing.times, c3_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
+        ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Power change (%)', fontsize=14, fontweight='bold')
+        ax.set_title(f'C3 Alpha ERD ({alpha_band[0]}-{alpha_band[1]} Hz)', fontsize=16, fontweight='bold')
+        ax.legend(fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=12)
+        
+        # C4 Alpha - LEFT vs RIGHT vs NOTHING
+        ax = axes[0, 1]
+        c4_alpha_left = extract_band_power(tfr_left, 'C4', alpha_band)
+        c4_alpha_right = extract_band_power(tfr_right, 'C4', alpha_band)
+        ax.plot(tfr_left.times, c4_alpha_left, linewidth=3, label='LEFT hand (contralateral)', color='#1f77b4')
+        ax.plot(tfr_right.times, c4_alpha_right, linewidth=3, label='RIGHT hand', color='#ff7f0e')
+        if tfr_nothing is not None:
+            c4_alpha_nothing = extract_band_power(tfr_nothing, 'C4', alpha_band)
+            ax.plot(tfr_nothing.times, c4_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
+        ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Power change (%)', fontsize=14, fontweight='bold')
+        ax.set_title(f'C4 Alpha ERD ({alpha_band[0]}-{alpha_band[1]} Hz)', fontsize=16, fontweight='bold')
+        ax.legend(fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=12)
+        
+        # C3 Beta - LEFT vs RIGHT vs NOTHING
+        ax = axes[1, 0]
+        c3_beta_left = extract_band_power(tfr_left, 'C3', beta_band)
+        c3_beta_right = extract_band_power(tfr_right, 'C3', beta_band)
+        ax.plot(tfr_left.times, c3_beta_left, linewidth=3, label='LEFT hand', color='#1f77b4')
+        ax.plot(tfr_right.times, c3_beta_right, linewidth=3, label='RIGHT hand (contralateral)', color='#ff7f0e')
+        if tfr_nothing is not None:
+            c3_beta_nothing = extract_band_power(tfr_nothing, 'C3', beta_band)
+            ax.plot(tfr_nothing.times, c3_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
+        ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Power change (%)', fontsize=14, fontweight='bold')
+        ax.set_title(f'C3 Beta ERD ({beta_band[0]}-{beta_band[1]} Hz)', fontsize=16, fontweight='bold')
+        ax.legend(fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=12)
+        
+        # C4 Beta - LEFT vs RIGHT vs NOTHING
+        ax = axes[1, 1]
+        c4_beta_left = extract_band_power(tfr_left, 'C4', beta_band)
+        c4_beta_right = extract_band_power(tfr_right, 'C4', beta_band)
+        ax.plot(tfr_left.times, c4_beta_left, linewidth=3, label='LEFT hand (contralateral)', color='#1f77b4')
+        ax.plot(tfr_right.times, c4_beta_right, linewidth=3, label='RIGHT hand', color='#ff7f0e')
+        if tfr_nothing is not None:
+            c4_beta_nothing = extract_band_power(tfr_nothing, 'C4', beta_band)
+            ax.plot(tfr_nothing.times, c4_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
+        ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Power change (%)', fontsize=14, fontweight='bold')
+        ax.set_title(f'C4 Beta ERD ({beta_band[0]}-{beta_band[1]} Hz)', fontsize=16, fontweight='bold')
+        ax.legend(fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=12)
+        
+        fig.suptitle('Contralateral ERD/ERS: Motor Cortex Desynchronization', 
+                    fontsize=18, fontweight='bold', y=0.995)
+        fig.tight_layout()
+        
+        # Save timecourse plot
+        timecourse_filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-contralateral_erd_timecourse.png"
+        )
+        timecourse_path = output_path / timecourse_filename
+        fig.savefig(str(timecourse_path), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info(f"Contralateral ERD timecourse saved to: {timecourse_path}")
+        
+        # =====================================================================
+        # Plot 2: Topoplots showing ERD/ERS spatial distribution
+        # =====================================================================
+        fig, axes = plt.subplots(2, 4, figsize=(24, 12))
+        
+        # Time window during task (e.g., 2-4 seconds after onset)
+        task_tmin = 2.0
+        task_tmax = 4.0
+        
+        # Helper function to compute average power in time window
+        def compute_topomap_data(tfr, freq_band, tmin, tmax):
+            freq_mask = (tfr.freqs >= freq_band[0]) & (tfr.freqs <= freq_band[1])
+            time_mask = (tfr.times >= tmin) & (tfr.times <= tmax)
+            # Average across frequency and time
+            data = tfr.data[:, freq_mask, :][:, :, time_mask].mean(axis=(1, 2))
+            return data
+        
+        # LEFT hand - Alpha
+        data_left_alpha = compute_topomap_data(tfr_left, alpha_band, task_tmin, task_tmax)
+        vmin_la = np.percentile(data_left_alpha, 5)
+        vmax_la = np.percentile(data_left_alpha, 95)
+        im, _ = mne.viz.plot_topomap(data_left_alpha, tfr_left.info, axes=axes[0, 0],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_la, vmax_la),
+                                     contours=6, sensors=True)
+        axes[0, 0].set_title(f'LEFT hand\nAlpha ({alpha_band[0]}-{alpha_band[1]} Hz)', 
+                            fontsize=14, fontweight='bold')
+        
+        # LEFT hand - Beta
+        data_left_beta = compute_topomap_data(tfr_left, beta_band, task_tmin, task_tmax)
+        vmin_lb = np.percentile(data_left_beta, 5)
+        vmax_lb = np.percentile(data_left_beta, 95)
+        im, _ = mne.viz.plot_topomap(data_left_beta, tfr_left.info, axes=axes[0, 1],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_lb, vmax_lb),
+                                     contours=6, sensors=True)
+        axes[0, 1].set_title(f'LEFT hand\nBeta ({beta_band[0]}-{beta_band[1]} Hz)', 
+                            fontsize=14, fontweight='bold')
+        
+        # RIGHT hand - Alpha
+        data_right_alpha = compute_topomap_data(tfr_right, alpha_band, task_tmin, task_tmax)
+        vmin_ra = np.percentile(data_right_alpha, 5)
+        vmax_ra = np.percentile(data_right_alpha, 95)
+        im, _ = mne.viz.plot_topomap(data_right_alpha, tfr_right.info, axes=axes[0, 2],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_ra, vmax_ra),
+                                     contours=6, sensors=True)
+        axes[0, 2].set_title(f'RIGHT hand\nAlpha ({alpha_band[0]}-{alpha_band[1]} Hz)', 
+                            fontsize=14, fontweight='bold')
+        
+        # RIGHT hand - Beta
+        data_right_beta = compute_topomap_data(tfr_right, beta_band, task_tmin, task_tmax)
+        vmin_rb = np.percentile(data_right_beta, 5)
+        vmax_rb = np.percentile(data_right_beta, 95)
+        im, _ = mne.viz.plot_topomap(data_right_beta, tfr_right.info, axes=axes[0, 3],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_rb, vmax_rb),
+                                     contours=6, sensors=True)
+        axes[0, 3].set_title(f'RIGHT hand\nBeta ({beta_band[0]}-{beta_band[1]} Hz)', 
+                            fontsize=14, fontweight='bold')
+        
+        # Contrast: LEFT - RIGHT (shows contralateral effect)
+        contrast_alpha = data_left_alpha - data_right_alpha
+        vmin_ca = np.percentile(contrast_alpha, 5)
+        vmax_ca = np.percentile(contrast_alpha, 95)
+        im, _ = mne.viz.plot_topomap(contrast_alpha, tfr_left.info, axes=axes[1, 0],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_ca, vmax_ca),
+                                     contours=6, sensors=True)
+        axes[1, 0].set_title('LEFT - RIGHT\nAlpha (contralateral effect)', 
+                            fontsize=14, fontweight='bold')
+        
+        contrast_beta = data_left_beta - data_right_beta
+        vmin_cb = np.percentile(contrast_beta, 5)
+        vmax_cb = np.percentile(contrast_beta, 95)
+        im, _ = mne.viz.plot_topomap(contrast_beta, tfr_left.info, axes=axes[1, 1],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_cb, vmax_cb),
+                                     contours=6, sensors=True)
+        axes[1, 1].set_title('LEFT - RIGHT\nBeta (contralateral effect)', 
+                            fontsize=14, fontweight='bold')
+        
+        # Hide unused subplots
+        axes[1, 2].axis('off')
+        axes[1, 3].axis('off')
+        
+        # Add colorbar
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+        cbar = fig.colorbar(im, cax=cbar_ax)
+        cbar.set_label('Power change (%)', fontsize=14, fontweight='bold')
+        cbar.ax.tick_params(labelsize=12)
+        
+        fig.suptitle(f'ERD/ERS Topoplots ({task_tmin}-{task_tmax}s after task onset)', 
+                    fontsize=18, fontweight='bold', y=0.98)
+        fig.tight_layout(rect=[0, 0, 0.9, 0.96])
+        
+        # Save topoplot
+        topoplot_filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-contralateral_erd_topoplot.png"
+        )
+        topoplot_path = output_path / topoplot_filename
+        fig.savefig(str(topoplot_path), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info(f"Contralateral ERD topoplots saved to: {topoplot_path}")
+        
+        return timecourse_path, topoplot_path
+        
+    except Exception as e:
+        logger.error(f"Failed to generate contralateral ERD plots: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, None
+
+
+def generate_cluster_topoplot(
+    epochs: mne.Epochs,
+    channels: list[str],
+    hemisphere_name: str,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate a topoplot showing the electrode cluster.
+    
+    Args:
+        epochs: MNE Epochs object with channel locations
+        channels: List of channel names in the cluster
+        hemisphere_name: "left" or "right"
+        output_path: Directory to save plot
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Path to saved topoplot or None if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Create a figure for the topoplot
+        fig, ax = plt.subplots(figsize=(8, 8))
+        
+        # Create a mask: 1 for cluster channels, 0 for others
+        mask = np.array([ch in channels for ch in epochs.ch_names])
+        
+        # Create dummy data (all zeros, we just want to show channel locations)
+        data = np.zeros(len(epochs.ch_names))
+        
+        # Plot topoplot with cluster channels highlighted
+        im, cn = mne.viz.plot_topomap(
+            data,
+            epochs.info,
+            axes=ax,
+            show=False,
+            contours=0,
+            cmap='Greys',
+            sensors=True,
+            names=channels,  # Only show names for cluster channels
+            mask=mask,
+            mask_params=dict(marker='o', markerfacecolor='red', markeredgecolor='darkred', 
+                           markersize=20, markeredgewidth=3, alpha=0.8),
+        )
+        
+        # Set title
+        ax.set_title(f'{hemisphere_name.capitalize()} Motor Cortex Cluster', 
+                    fontsize=16, fontweight='bold', pad=10)
+        
+        # Save figure
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-topoplot_{hemisphere_name}.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight", facecolor='white')
+        plt.close(fig)
+        
+        logger.info(f"{hemisphere_name.capitalize()} topoplot saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to generate {hemisphere_name} topoplot: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def generate_clustered_psd_plots(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> tuple[Optional[Path], Optional[Path], Optional[Path], Optional[Path]]:
+    """
+    Generate PSD plots clustered by hemisphere and grouped by condition.
+    
+    Creates four plots:
+    1. Left hemisphere PSD
+    2. Left hemisphere topoplot
+    3. Right hemisphere PSD
+    4. Right hemisphere topoplot
+    
+    Each PSD plot shows mean PSD ± SEM for each condition (LEFT, RIGHT, NOTHING).
+    Each topoplot shows the electrode cluster highlighted.
+    
+    Args:
+        epochs: MNE Epochs object with condition information
+        output_path: Directory to save plots
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Tuple of (left_psd_path, left_topo_path, right_psd_path, right_topo_path) or (None, None, None, None) if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Define sensorimotor clusters centered on C3/C4 for motor task analysis
+        # Left motor cortex: C3 and immediate neighbors
+        left_channels = ['FC1', 'FC5', 'C3', 'CP1', 'CP5']
+        # Right motor cortex: C4 and immediate neighbors
+        right_channels = ['FC2', 'FC6', 'C4', 'CP2', 'CP6']
+        
+        # Get available channels in epochs
+        available_channels = epochs.ch_names
+        left_available = [ch for ch in left_channels if ch in available_channels]
+        right_available = [ch for ch in right_channels if ch in available_channels]
+        
+        if not left_available or not right_available:
+            logger.warning("Not enough channels for hemisphere clustering")
+            return None, None, None, None
+        
+        logger.info(f"Left hemisphere channels: {left_available}")
+        logger.info(f"Right hemisphere channels: {right_available}")
+        
+        # Get conditions from epochs
+        conditions = list(epochs.event_id.keys())
+        logger.info(f"Conditions found: {conditions}")
+        
+        # Define colors for conditions
+        condition_colors = {
+            'LEFT': '#1f77b4',
+            'RIGHT': '#ff7f0e', 
+            'NOTHING': '#2ca02c',
+            'LEFT/1': '#1f77b4',
+            'RIGHT/2': '#ff7f0e',
+            'NOTHING/3': '#2ca02c',
+        }
+        
+        # Function to compute PSD for a set of channels and conditions
+        def compute_cluster_psd(channels, hemisphere_name):
+            fig, ax = plt.subplots(figsize=(40, 25))
+            
+            for condition in conditions:
+                # Get epochs for this condition
+                try:
+                    cond_epochs = epochs[condition]
+                except KeyError:
+                    logger.warning(f"Condition {condition} not found in epochs")
+                    continue
+                
+                if len(cond_epochs) == 0:
+                    logger.warning(f"No epochs for condition {condition}")
+                    continue
+                
+                # Pick only the channels for this hemisphere
+                cond_epochs_picked = cond_epochs.copy().pick_channels(channels, ordered=False)
+                
+                # Compute PSD for each epoch
+                psds_list = []
+                for epoch_data in cond_epochs_picked.get_data():
+                    # epoch_data shape: (n_channels, n_times)
+                    # Compute PSD using Welch method
+                    from scipy import signal
+                    freqs_list = []
+                    psd_epoch = []
+                    
+                    for ch_idx in range(epoch_data.shape[0]):
+                        freqs, psd = signal.welch(
+                            epoch_data[ch_idx],
+                            fs=cond_epochs_picked.info['sfreq'],
+                            nperseg=min(2048, epoch_data.shape[1]),
+                            noverlap=min(1024, epoch_data.shape[1]//2),
+                        )
+                        psd_epoch.append(psd)
+                        if len(freqs_list) == 0:
+                            freqs_list = freqs
+                    
+                    # Average across channels for this epoch
+                    psd_epoch_mean = np.mean(psd_epoch, axis=0)
+                    psds_list.append(psd_epoch_mean)
+                
+                # Convert to array: (n_epochs, n_freqs)
+                psds_array = np.array(psds_list)
+                
+                # Compute mean and SEM across epochs (in linear scale)
+                psd_mean = np.mean(psds_array, axis=0)
+                psd_std = np.std(psds_array, axis=0)
+                n_epochs = psds_array.shape[0]
+                psd_sem = psd_std / np.sqrt(n_epochs)  # Standard Error of the Mean
+                
+                # Convert to dB: mean and confidence bounds
+                psd_mean_db = 10 * np.log10(psd_mean + 1e-20)  # Avoid log(0)
+                psd_upper_db = 10 * np.log10(psd_mean + psd_sem + 1e-20)
+                psd_lower_db = 10 * np.log10(np.maximum(psd_mean - psd_sem, 1e-20))
+                
+                # Filter to 1-50 Hz
+                freq_mask = (freqs_list >= 1) & (freqs_list <= 50)
+                freqs_plot = freqs_list[freq_mask]
+                psd_mean_plot = psd_mean_db[freq_mask]
+                psd_upper_plot = psd_upper_db[freq_mask]
+                psd_lower_plot = psd_lower_db[freq_mask]
+                
+                # Get color for this condition
+                color = condition_colors.get(condition, '#333333')
+                
+                # Plot mean line
+                ax.plot(freqs_plot, psd_mean_plot, linewidth=4, label=condition, color=color, alpha=0.9)
+                
+                # Plot shaded SEM (Standard Error of the Mean)
+                ax.fill_between(
+                    freqs_plot,
+                    psd_lower_plot,
+                    psd_upper_plot,
+                    alpha=0.3,
+                    color=color
+                )
+            
+            # Customize plot
+            ax.set_xlabel('Frequency (Hz)', fontsize=36, fontweight='bold')
+            ax.set_ylabel('Power Spectral Density (dB)', fontsize=36, fontweight='bold')
+            ax.set_title(f'PSD - {hemisphere_name} Motor Cortex by Condition', fontsize=42, fontweight='bold', pad=20)
+            ax.tick_params(axis='both', which='major', labelsize=30, width=3, length=10)
+            ax.grid(True, alpha=0.3, linewidth=2)
+            ax.set_xlim([1, 50])
+            
+            # Make spines thicker
+            for spine in ax.spines.values():
+                spine.set_linewidth(3)
+            
+            # Add legend
+            ax.legend(fontsize=28, loc='upper right', framealpha=0.9)
+            
+            fig.tight_layout()
+            
+            return fig
+        
+        # Generate left hemisphere plot
+        left_fig = compute_cluster_psd(left_available, "Left")
+        left_filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-psd_left.png"
+        )
+        left_path = output_path / left_filename
+        left_fig.savefig(str(left_path), dpi=150, bbox_inches="tight")
+        plt.close(left_fig)
+        logger.info(f"Left hemisphere PSD saved to: {left_path}")
+        
+        # Generate left hemisphere topoplot
+        left_topo_path = generate_cluster_topoplot(epochs, left_available, "left", output_path, config)
+        
+        # Generate right hemisphere plot
+        right_fig = compute_cluster_psd(right_available, "Right")
+        right_filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-psd_right.png"
+        )
+        right_path = output_path / right_filename
+        right_fig.savefig(str(right_path), dpi=150, bbox_inches="tight")
+        plt.close(right_fig)
+        logger.info(f"Right hemisphere PSD saved to: {right_path}")
+        
+        # Generate right hemisphere topoplot
+        right_topo_path = generate_cluster_topoplot(epochs, right_available, "right", output_path, config)
+        
+        return left_path, left_topo_path, right_path, right_topo_path
+        
+    except Exception as e:
+        logger.error(f"Failed to generate clustered PSD plots: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, None, None, None
+
+
 def parse_args() -> argparse.Namespace:
     """
     Parse command-line arguments for the unified analysis pipeline.
@@ -116,6 +965,12 @@ Examples:
 
   # Generate QA report only
   python run_analysis.py --config configs/sub-010.yml --qa-only
+
+  # Load preprocessed data AND cleaned epochs (skip all interactive steps)
+  python run_analysis.py --config configs/sub-010.yml --load-preprocessed
+
+  # Load cleaned epochs (same as --load-preprocessed for EEG analysis)
+  python run_analysis.py --config configs/sub-010.yml --load-epochs
 
   # Combine overrides
   python run_analysis.py --config configs/sub-010.yml --eeg true --fnirs false --qa-only
@@ -150,6 +1005,18 @@ Examples:
         "--qa-only",
         action="store_true",
         help="Generate only QA report, skip full analysis",
+    )
+    
+    parser.add_argument(
+        "--load-preprocessed",
+        action="store_true",
+        help="Load preprocessed data AND cleaned epochs, skip all interactive steps (epoching, ICA)",
+    )
+    
+    parser.add_argument(
+        "--load-epochs",
+        action="store_true",
+        help="Load cleaned epochs (same as --load-preprocessed for EEG analysis)",
     )
 
     return parser.parse_args()
@@ -536,13 +1403,24 @@ def build_mne_objects(
 
                 # Load fNIRS montage configuration from JSON sidecar
                 # Format: data/raw/sub-{id}/sub-{id}_ses-{session}_task-{task}_nirs.json
+                # Or: data/raw/sub-{id}/ses-{session}/sub-{id}_ses-{session}_task-{task}_nirs.json
                 json_filename = (
                     f"sub-{config.subject.id}_"
                     f"ses-{config.subject.session}_"
                     f"task-{config.subject.task}_nirs.json"
                 )
+                
+                # Try multiple possible locations
                 json_dir = config.data_root / f"sub-{config.subject.id}"
                 json_path = json_dir / json_filename
+                
+                # Try with session subdirectory
+                if not json_path.exists():
+                    json_dir_with_session = json_dir / f"ses-{config.subject.session}"
+                    json_path_with_session = json_dir_with_session / json_filename
+                    if json_path_with_session.exists():
+                        json_path = json_path_with_session
+                        logger.info(f"Found JSON in session subdirectory: {json_path_with_session}")
                 
                 # Try lowercase variant if not found
                 if not json_path.exists():
@@ -866,6 +1744,8 @@ def save_qa_report(
                     "channel_name": ch_quality.channel_name,
                     "mean_correlation": float(ch_quality.mean_correlation),
                     "signal_variance": float(ch_quality.signal_variance),
+                    "amplitude_range_uv": float(ch_quality.amplitude_range_uv),
+                    "std_uv": float(ch_quality.std_uv),
                     "quality_status": ch_quality.quality_status,
                     "is_bad": bool(ch_quality.is_bad),
                 }
@@ -1000,9 +1880,10 @@ def run_preprocessing(
         
         # Log EEG preprocessing configuration (Req. 7.2, 8.10)
         logger.info("EEG Preprocessing Configuration:")
-        logger.info(f"  Reference channel: {config.eeg_preprocessing.reference_channel}")
+        logger.info(f"  Reference channel: None (hardware reference preserved)")
         logger.info(f"  Apply CAR: {config.eeg_preprocessing.apply_car}")
-        logger.info(f"  ICA enabled: {config.eeg_preprocessing.ica_enabled}")
+        logger.info(f"  ICA: Will be applied on epochs (after epoch rejection)")
+        logger.info(f"  Interactive bad channel detection: Enabled")
         
         try:
             # Store annotations before preprocessing
@@ -1020,14 +1901,22 @@ def run_preprocessing(
                 )
                 ica_save_path = str(output_path / ica_filename)
 
-            # Call existing preprocessing pipeline with new parameters
+            # Call preprocessing pipeline with interactive bad channel detection
+            # ICA will be applied later on epochs (after epoch rejection)
+            # This will:
+            # 1. Apply bandpass filter (1-40 Hz)
+            # 2. Detect bad channels automatically
+            # 3. Open interactive plot for manual inspection
+            # 4. Interpolate bad channels
+            # 5. Apply CAR
             processed_eeg, ica = preprocess_eeg_pipeline(
                 raw_eeg=raw_eeg,
                 config=config,
-                save_ica_path=ica_save_path,
-                reference_channel=config.eeg_preprocessing.reference_channel,
+                save_ica_path=None,  # ICA will be saved later (applied on epochs)
+                reference_channel=None,  # No initial reference (hardware reference preserved)
                 apply_car=config.eeg_preprocessing.apply_car,
-                ica_enabled=config.eeg_preprocessing.ica_enabled,
+                ica_enabled=False,  # ICA will be applied on epochs, not on raw
+                interactive_bad_channel_detection=True,  # Enable interactive inspection
             )
 
             # Restore annotations to preprocessed data
@@ -1043,6 +1932,84 @@ def run_preprocessing(
             logger.info(
                 f"EEG preprocessing complete: {len(processed_eeg.ch_names)} channels"
             )
+            
+            # Save preprocessed EEG data (BIDS-compliant)
+            logger.info("Saving preprocessed EEG data...")
+            preprocessed_eeg_filename = (
+                f"sub-{config.subject.id}_"
+                f"ses-{config.subject.session}_"
+                f"task-{config.subject.task}_"
+                f"desc-preprocessed_eeg.fif"
+            )
+            preprocessed_eeg_path = output_path / preprocessed_eeg_filename
+            processed_eeg.save(preprocessed_eeg_path, overwrite=True)
+            logger.info(f"Preprocessed EEG saved to: {preprocessed_eeg_path}")
+            
+            # Generate PSD plot using MNE's native plotting (after preprocessing)
+            logger.info("Generating PSD plot for preprocessed EEG...")
+            
+            psd_filename = (
+                f"sub-{config.subject.id}_"
+                f"ses-{config.subject.session}_"
+                f"task-{config.subject.task}_"
+                f"desc-psd.png"
+            )
+            psd_path = output_path / psd_filename
+            
+            try:
+                # Compute PSD using MNE's native method
+                psd = processed_eeg.compute_psd(
+                    method="welch",
+                    fmin=1.0,
+                    fmax=50.0,
+                    picks="eeg",
+                    n_fft=2048,
+                    n_overlap=1024,
+                    verbose=False,
+                )
+                
+                # Extract PSD data for custom plotting
+                psds, freqs = psd.get_data(return_freqs=True)
+                
+                # Create custom large plot with matplotlib
+                import matplotlib.pyplot as plt
+                fig, ax = plt.subplots(figsize=(40, 25))
+                
+                # Plot each channel
+                for idx, ch_name in enumerate(psd.ch_names):
+                    ax.plot(freqs, 10 * np.log10(psds[idx]), 
+                           linewidth=3, alpha=0.7, label=ch_name)
+                
+                # Customize plot appearance
+                ax.set_xlabel('Frequency (Hz)', fontsize=36, fontweight='bold')
+                ax.set_ylabel('Power Spectral Density (dB)', fontsize=36, fontweight='bold')
+                ax.set_title('EEG Power Spectral Density', fontsize=42, fontweight='bold', pad=20)
+                ax.tick_params(axis='both', which='major', labelsize=30, width=3, length=10)
+                ax.grid(True, alpha=0.3, linewidth=2)
+                ax.set_xlim([1, 50])
+                
+                # Make spines thicker
+                for spine in ax.spines.values():
+                    spine.set_linewidth(3)
+                
+                # Add legend with larger font
+                ax.legend(fontsize=20, loc='upper right', ncol=3, framealpha=0.9)
+                
+                # Tight layout
+                fig.tight_layout()
+                
+                # Save figure with high DPI
+                fig.savefig(str(psd_path), dpi=150, bbox_inches="tight")
+                plt.close(fig)
+                
+                logger.info(f"PSD plot saved to: {psd_path}")
+                
+                # Store processed_eeg for later use in clustered PSD plots
+                processed_eeg_for_psd = processed_eeg
+                
+            except Exception as psd_error:
+                logger.warning(f"Failed to generate PSD plot: {psd_error}")
+                processed_eeg_for_psd = None
 
         except Exception as e:
             logger.error(f"EEG preprocessing failed: {e}")
@@ -1062,13 +2029,24 @@ def run_preprocessing(
 
             # Load fNIRS montage configuration from JSON sidecar
             # Format: data/raw/sub-{id}/sub-{id}_ses-{session}_task-{task}_nirs.json
+            # Or: data/raw/sub-{id}/ses-{session}/sub-{id}_ses-{session}_task-{task}_nirs.json
             json_filename = (
                 f"sub-{config.subject.id}_"
                 f"ses-{config.subject.session}_"
                 f"task-{config.subject.task}_nirs.json"
             )
+            
+            # Try multiple possible locations
             json_dir = config.data_root / f"sub-{config.subject.id}"
             json_path = json_dir / json_filename
+            
+            # Try with session subdirectory
+            if not json_path.exists():
+                json_dir_with_session = json_dir / f"ses-{config.subject.session}"
+                json_path_with_session = json_dir_with_session / json_filename
+                if json_path_with_session.exists():
+                    json_path = json_path_with_session
+                    logger.info(f"Found JSON in session subdirectory: {json_path_with_session}")
 
             # Try lowercase variant if not found
             if not json_path.exists():
@@ -1120,6 +2098,19 @@ def run_preprocessing(
             logger.info(
                 f"fNIRS preprocessing complete: {len(processed_fnirs.ch_names)} channels"
             )
+            
+            # Save preprocessed fNIRS data (BIDS-compliant)
+            logger.info("Saving preprocessed fNIRS data...")
+            preprocessed_fnirs_filename = (
+                f"sub-{config.subject.id}_"
+                f"ses-{config.subject.session}_"
+                f"task-{config.subject.task}_"
+                f"desc-preprocessed_fnirs.fif"
+            )
+            preprocessed_fnirs_path = output_path / preprocessed_fnirs_filename
+            processed_fnirs.save(preprocessed_fnirs_path, overwrite=True)
+            logger.info(f"Preprocessed fNIRS saved to: {preprocessed_fnirs_path}")
+            
             logger.info(
                 f"Motion artifacts corrected: {processing_metrics['motion_artifacts_corrected']}"
             )
@@ -1144,6 +2135,7 @@ def run_preprocessing(
 def run_eeg_analysis(
     processed_eeg: mne.io.Raw,
     config: SubjectConfig,
+    output_path: Path,
 ) -> dict[str, any]:
     """
     Run EEG analysis including epoching, TFR, and ERD/ERS detection.
@@ -1163,6 +2155,7 @@ def run_eeg_analysis(
     Args:
         processed_eeg: Preprocessed MNE Raw object (filtered, ICA-cleaned, CAR)
         config: SubjectConfig with analysis parameters and channels of interest
+        output_path: Path to output directory for saving plots
 
     Returns:
         Dictionary with analysis results:
@@ -1194,10 +2187,11 @@ def run_eeg_analysis(
     logger.info("Running EEG analysis (epoching, TFR, ERD/ERS detection)")
 
     # Define event mapping for epochs
-    # Use task-related events (LEFT, RIGHT, or generic task markers)
+    # Use task-related events (LEFT, RIGHT, NOTHING - 3 conditions)
     event_id = {
         "LEFT": 1,
         "RIGHT": 2,
+        "NOTHING": 3,
     }
 
     # Try to find events in annotations
@@ -1230,9 +2224,9 @@ def run_eeg_analysis(
 
     if not event_id_filtered:
         raise ValueError(
-            f"No valid events found for epoching. "
+            f"No valid events found for EEG epoching. "
             f"Available events: {available_events}, "
-            f"Expected: LEFT, RIGHT, task_start, or block_start"
+            f"Expected: LEFT, RIGHT, NOTHING, task_start, or block_start"
         )
 
     logger.info(f"Using events for epoching: {event_id_filtered}")
@@ -1270,6 +2264,193 @@ def run_eeg_analysis(
             f"Created {len(epochs)} epochs: "
             f"{epochs.info['nchan']} channels, "
             f"{len(epochs.times)} time points"
+        )
+        
+        # Interactive epoch rejection (BEFORE ICA for better ICA fitting)
+        logger.info("=" * 80)
+        logger.info("INTERACTIVE EPOCH REJECTION (Before ICA)")
+        logger.info("=" * 80)
+        logger.info("Opening interactive plot for epoch inspection...")
+        logger.info("")
+        logger.info("Instructions:")
+        logger.info("  1. Inspect epochs visually (signal is preprocessed with CAR)")
+        logger.info("  2. Click on epochs to mark them as BAD (they will turn red)")
+        logger.info("  3. Bad epochs will be excluded BEFORE ICA fitting")
+        logger.info("  4. This improves ICA decomposition quality")
+        logger.info("  5. Look for:")
+        logger.info("     - Extreme amplitudes (>100 µV)")
+        logger.info("     - Movement artifacts (sudden jumps)")
+        logger.info("     - Very noisy epochs")
+        logger.info("  6. Close the window when done to continue")
+        logger.info("=" * 80)
+        
+        # Open interactive epoch plot
+        try:
+            epochs.plot(
+                n_channels=30,
+                n_epochs=5,  # Show 5 epochs at a time
+                scalings='auto',
+                title='Epoch Inspection (Before ICA) - Click epochs to mark as BAD',
+                show=True,
+                block=True  # Wait for user to close window
+            )
+        except Exception as e:
+            logger.warning(f"Could not open interactive epoch plot: {e}")
+        
+        # Drop bad epochs marked by user
+        n_epochs_before = len(epochs)
+        epochs.drop_bad()
+        n_epochs_after = len(epochs)
+        n_dropped = n_epochs_before - n_epochs_after
+        
+        logger.info("=" * 80)
+        if n_dropped > 0:
+            logger.info(f"User marked {n_dropped} bad epochs")
+            logger.info(f"Epochs remaining: {n_epochs_after}/{n_epochs_before}")
+            logger.info("These clean epochs will be used for ICA fitting")
+        else:
+            logger.info("No epochs marked as bad by user")
+        logger.info("=" * 80)
+        
+        # Now apply ICA on clean epochs
+        logger.info("Fitting ICA on clean epochs...")
+        
+        # Fit ICA
+        ica = mne.preprocessing.ICA(
+            n_components=0.99,
+            method='fastica',
+            random_state=42,
+            max_iter=1000
+        )
+        ica.fit(epochs)
+        
+        logger.info(f"ICA fitted with {ica.n_components_} components")
+        
+        # Automatic artifact detection
+        logger.info("Detecting artifact components automatically...")
+        
+        # EOG detection (if frontal channels available)
+        eog_components = []
+        frontal_channels = ['Fp1', 'Fp2']
+        available_frontal = [ch for ch in frontal_channels if ch in epochs.ch_names]
+        if available_frontal:
+            eog_inds, eog_scores = ica.find_bads_eog(epochs, ch_name=available_frontal, threshold=0.9)
+            eog_components = eog_inds
+            if eog_components:
+                logger.info(f"EOG components detected: {eog_components}")
+        
+        # EMG detection (high frequency power)
+        emg_inds, emg_scores = ica.find_bads_muscle(epochs, threshold=2.5)
+        emg_components = emg_inds
+        if emg_components:
+            logger.info(f"EMG components detected: {emg_components}")
+        
+        # Combine automatic detections
+        artifact_components_auto = sorted(list(set(eog_components + emg_components)))
+        
+        # Interactive component inspection
+        logger.info("=" * 80)
+        logger.info("INTERACTIVE ICA COMPONENT INSPECTION")
+        logger.info("=" * 80)
+        logger.info("Automatic artifact detection found:")
+        logger.info(f"  EOG components: {eog_components}")
+        logger.info(f"  EMG components: {emg_components}")
+        logger.info(f"  Total automatic: {artifact_components_auto}")
+        logger.info("")
+        logger.info("Opening interactive plots for manual component inspection...")
+        logger.info("")
+        logger.info("Instructions:")
+        logger.info("  1. Component topographies window will open")
+        logger.info("  2. Click on component numbers to TOGGLE exclusion (red = excluded)")
+        logger.info("  3. Automatic suggestions are already marked in red")
+        logger.info("  4. Click to add/remove components from exclusion list")
+        logger.info("  5. Close the window when done to continue")
+        logger.info("=" * 80)
+        
+        # Pre-mark automatic suggestions
+        ica.exclude = artifact_components_auto.copy()
+        
+        # Plot component topographies
+        try:
+            ica.plot_components(
+                picks=range(min(20, ica.n_components_)),
+                show=True,
+                inst=epochs
+            )
+        except Exception as e:
+            logger.warning(f"Could not plot component topographies: {e}")
+        
+        # Plot component sources
+        try:
+            ica.plot_sources(
+                epochs,
+                show=True,
+                block=True,
+                title='ICA Components - Right-click to mark as artifact'
+            )
+        except Exception as e:
+            logger.warning(f"Could not plot component sources: {e}")
+        
+        # Get final exclusion list
+        artifact_components = ica.exclude.copy()
+        
+        # Log changes
+        added_components = set(artifact_components) - set(artifact_components_auto)
+        removed_components = set(artifact_components_auto) - set(artifact_components)
+        
+        logger.info("=" * 80)
+        if added_components:
+            logger.info(f"User ADDED components to exclude: {sorted(list(added_components))}")
+        if removed_components:
+            logger.info(f"User REMOVED components from exclusion: {sorted(list(removed_components))}")
+        if not added_components and not removed_components:
+            logger.info("User kept automatic suggestions")
+        
+        logger.info(f"Final components to exclude: {sorted(artifact_components)}")
+        logger.info("=" * 80)
+        
+        # Apply ICA to epochs
+        logger.info(f"Applying ICA (excluding {len(artifact_components)} components)...")
+        epochs = ica.apply(epochs)
+        logger.info("ICA applied successfully")
+        
+        # Save cleaned epochs (BIDS-compliant)
+        logger.info("Saving cleaned epochs...")
+        epochs_filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-cleaned_epo.fif"
+        )
+        epochs_path = output_path / epochs_filename
+        epochs.save(epochs_path, overwrite=True)
+        logger.info(f"Cleaned epochs saved to: {epochs_path}")
+        
+        # Save ICA object
+        ica_filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"ica.fif"
+        )
+        ica_path = output_path / ica_filename
+        ica.save(ica_path, overwrite=True)
+        logger.info(f"ICA object saved to: {ica_path}")
+        
+        # Generate clustered PSD plots by hemisphere and condition
+        logger.info("Generating clustered PSD plots by hemisphere...")
+        left_psd_path, left_topo_path, right_psd_path, right_topo_path = generate_clustered_psd_plots(
+            epochs, output_path, config
+        )
+        
+        # Generate Time-Frequency Maps (most informative canonical plot)
+        logger.info("Generating Time-Frequency Maps...")
+        tfr_maps_path = generate_tfr_maps(epochs, output_path, config)
+        
+        # Generate contralateral ERD/ERS plots
+        logger.info("Generating contralateral ERD/ERS plots...")
+        contralateral_timecourse_path, contralateral_topoplot_path = generate_contralateral_erd_plots(
+            epochs, output_path, config
         )
 
     except Exception as e:
@@ -1381,6 +2562,186 @@ def run_eeg_analysis(
         "epochs": epochs,
         "tfr": tfr,
         "erd_ers_results": erd_ers_results,
+        "left_psd_path": left_psd_path,
+        "left_topo_path": left_topo_path,
+        "right_psd_path": right_psd_path,
+        "right_topo_path": right_topo_path,
+        "tfr_maps_path": tfr_maps_path,
+        "contralateral_timecourse_path": contralateral_timecourse_path,
+        "contralateral_topoplot_path": contralateral_topoplot_path,
+    }
+
+
+def run_eeg_analysis_from_epochs(
+    epochs: mne.Epochs,
+    processed_eeg: mne.io.Raw,
+    config: SubjectConfig,
+    output_path: Path,
+) -> dict[str, any]:
+    """
+    Run EEG analysis on pre-cleaned epochs (TFR and ERD/ERS detection only).
+
+    This function performs time-frequency analysis on already-cleaned epochs,
+    skipping the epoching, epoch rejection, and ICA stages. Use this when
+    loading saved cleaned epochs with --load-epochs flag.
+
+    Algorithm:
+        1. Compute Time-Frequency Representation (TFR) using compute_tfr()
+        2. For each channel in eeg_channels_of_interest:
+           - Call detect_erd_ers() to quantify ERD/ERS
+           - Store results for each channel
+        3. Return dictionary with TFR and ERD/ERS results
+
+    Args:
+        epochs: Pre-cleaned MNE Epochs object (already ICA-cleaned)
+        processed_eeg: Preprocessed MNE Raw object (for bad channel info)
+        config: SubjectConfig with analysis parameters and channels of interest
+        output_path: Path to output directory for saving plots
+
+    Returns:
+        Dictionary with analysis results:
+        {
+            'epochs': mne.Epochs object (same as input),
+            'tfr': mne.time_frequency.AverageTFR object,
+            'erd_ers_results': dict mapping channel names to ERD/ERS metrics,
+            'left_psd_path': Path to left hemisphere PSD plot,
+            'right_psd_path': Path to right hemisphere PSD plot
+        }
+
+    Raises:
+        ValueError: If no valid channels for analysis
+
+    Notes:
+        - Assumes epochs are already cleaned (bad epochs rejected, ICA applied)
+        - Uses compute_tfr() for time-frequency analysis (Req. 5.4)
+        - Calls detect_erd_ers() for each channel in eeg_channels_of_interest (Req. 5.2)
+        - Logs progress for each channel
+        - Handles missing channels gracefully (logs warning, skips channel)
+
+    Requirements: 5.2, 5.4
+
+    Example:
+        >>> epochs = mne.read_epochs('sub-001_desc-cleaned_epo.fif')
+        >>> eeg_results = run_eeg_analysis_from_epochs(epochs, processed_eeg, config, output_path)
+        >>> print(f"Analyzed {len(eeg_results['erd_ers_results'])} channels")
+    """
+    logger = logging.getLogger(__name__)
+    logger.info("Running EEG analysis on pre-cleaned epochs (TFR + ERD/ERS only)")
+
+    # Step 1: Compute Time-Frequency Representation (TFR)
+    logger.info("Computing Time-Frequency Representation (TFR)...")
+    try:
+        # Use frequency range from config (alpha and beta bands)
+        freqs = np.arange(3, 31, 1)  # 3-30 Hz, 1 Hz steps
+
+        tfr = compute_tfr(
+            epochs,
+            freqs=freqs,
+            n_cycles=7.0,
+            baseline=(
+                config.analysis.baseline_window_start_sec,
+                config.analysis.baseline_window_end_sec,
+            ),
+            baseline_mode="percent",
+        )
+
+        logger.info(
+            f"TFR computed: {tfr.data.shape[0]} channels, "
+            f"{tfr.data.shape[1]} frequencies, "
+            f"{tfr.data.shape[2]} time points"
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to compute TFR: {e}")
+        raise
+
+    # Step 2: Detect ERD/ERS for each channel of interest
+    logger.info(
+        f"Detecting ERD/ERS for channels: {config.eeg_channels_of_interest}"
+    )
+
+    erd_ers_results = {}
+
+    for channel in config.eeg_channels_of_interest:
+        # Check if channel exists in TFR
+        if channel not in tfr.ch_names:
+            logger.warning(
+                f"Channel {channel} not found in TFR data. "
+                f"Available channels: {tfr.ch_names}. Skipping."
+            )
+            continue
+
+        # Check if channel is marked as bad
+        if channel in processed_eeg.info["bads"]:
+            logger.warning(
+                f"Channel {channel} is marked as bad. Skipping ERD/ERS detection."
+            )
+            continue
+
+        try:
+            logger.info(f"Analyzing channel: {channel}")
+
+            # Detect ERD/ERS
+            erd_ers_metrics = detect_erd_ers(
+                tfr,
+                channel=channel,
+                alpha_band=(
+                    config.analysis.alpha_band_low_hz,
+                    config.analysis.alpha_band_high_hz,
+                ),
+                beta_band=(
+                    config.analysis.beta_band_low_hz,
+                    config.analysis.beta_band_high_hz,
+                ),
+                task_window=(
+                    config.analysis.task_window_start_sec,
+                    config.analysis.task_window_end_sec,
+                ),
+                baseline_window=(
+                    config.analysis.baseline_window_start_sec,
+                    config.analysis.baseline_window_end_sec,
+                ),
+                beta_rebound_window=(
+                    config.analysis.beta_rebound_window_start_sec,
+                    config.analysis.beta_rebound_window_end_sec,
+                ),
+            )
+
+            erd_ers_results[channel] = erd_ers_metrics
+
+            logger.info(
+                f"  {channel}: Mu ERD={erd_ers_metrics['alpha_erd_percent']:.1f}%, "
+                f"Beta ERD={erd_ers_metrics['beta_erd_percent']:.1f}%, "
+                f"Beta Rebound={erd_ers_metrics['beta_rebound_percent']:.1f}%"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to detect ERD/ERS for channel {channel}: {e}")
+            # Continue with other channels
+            continue
+
+    if not erd_ers_results:
+        logger.warning(
+            "No ERD/ERS results computed. Check channel names and data quality."
+        )
+
+    logger.info(
+        f"EEG analysis complete: {len(erd_ers_results)} channels analyzed"
+    )
+
+    # Note: PSD paths are already generated before calling this function
+    # Return None for PSD paths as they should already exist
+    return {
+        "epochs": epochs,
+        "tfr": tfr,
+        "erd_ers_results": erd_ers_results,
+        "left_psd_path": None,  # Already generated
+        "left_topo_path": None,  # Already generated
+        "right_psd_path": None,  # Already generated
+        "right_topo_path": None,  # Already generated
+        "tfr_maps_path": None,  # Already generated
+        "contralateral_timecourse_path": None,  # Already generated
+        "contralateral_topoplot_path": None,  # Already generated
     }
 
 
@@ -1433,10 +2794,11 @@ def run_fnirs_analysis(
     logger = logging.getLogger(__name__)
     logger.info("Running fNIRS analysis (epoching, HRF extraction)")
 
-    # Define event mapping for epochs
+    # Define event mapping for epochs (3 conditions)
     event_id = {
         "LEFT": 1,
         "RIGHT": 2,
+        "NOTHING": 3,
     }
 
     # Try to find events in annotations
@@ -1469,9 +2831,9 @@ def run_fnirs_analysis(
 
     if not event_id_filtered:
         raise ValueError(
-            f"No valid events found for epoching. "
+            f"No valid events found for fNIRS epoching. "
             f"Available events: {available_events}, "
-            f"Expected: LEFT, RIGHT, task_start, or block_start"
+            f"Expected: LEFT, RIGHT, NOTHING, task_start, or block_start"
         )
 
     logger.info(f"Using events for epoching: {event_id_filtered}")
@@ -1761,6 +3123,61 @@ def generate_visualizations(
 
         tfr = eeg_results.get("tfr")
         epochs = eeg_results.get("epochs")
+        
+        # Visualization 0: PSD (after preprocessing)
+        # This plot is generated during preprocessing, just add path if it exists
+        psd_filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-psd.png"
+        )
+        psd_path = output_path / psd_filename
+        if psd_path.exists():
+            visualization_paths["eeg_psd"] = psd_path
+            logger.info(f"Found PSD plot: {psd_path}")
+        else:
+            logger.warning(f"PSD plot not found: {psd_path}")
+        
+        # Add clustered PSD plots if they exist
+        left_psd_path = eeg_results.get("left_psd_path")
+        left_topo_path = eeg_results.get("left_topo_path")
+        right_psd_path = eeg_results.get("right_psd_path")
+        right_topo_path = eeg_results.get("right_topo_path")
+        
+        if left_psd_path and left_psd_path.exists():
+            visualization_paths["eeg_psd_left"] = left_psd_path
+            logger.info(f"Found left hemisphere PSD plot: {left_psd_path}")
+        
+        if left_topo_path and left_topo_path.exists():
+            visualization_paths["eeg_topo_left"] = left_topo_path
+            logger.info(f"Found left hemisphere topoplot: {left_topo_path}")
+        
+        if right_psd_path and right_psd_path.exists():
+            visualization_paths["eeg_psd_right"] = right_psd_path
+            logger.info(f"Found right hemisphere PSD plot: {right_psd_path}")
+        
+        if right_topo_path and right_topo_path.exists():
+            visualization_paths["eeg_topo_right"] = right_topo_path
+            logger.info(f"Found right hemisphere topoplot: {right_topo_path}")
+        
+        # Add contralateral ERD plots if they exist
+        contralateral_timecourse_path = eeg_results.get("contralateral_timecourse_path")
+        contralateral_topoplot_path = eeg_results.get("contralateral_topoplot_path")
+        
+        if contralateral_timecourse_path and contralateral_timecourse_path.exists():
+            visualization_paths["eeg_contralateral_timecourse"] = contralateral_timecourse_path
+            logger.info(f"Found contralateral ERD timecourse: {contralateral_timecourse_path}")
+        
+        if contralateral_topoplot_path and contralateral_topoplot_path.exists():
+            visualization_paths["eeg_contralateral_topoplot"] = contralateral_topoplot_path
+            logger.info(f"Found contralateral ERD topoplot: {contralateral_topoplot_path}")
+        
+        # Add Time-Frequency Maps if they exist
+        tfr_maps_path = eeg_results.get("tfr_maps_path")
+        if tfr_maps_path and tfr_maps_path.exists():
+            visualization_paths["eeg_tfr_maps"] = tfr_maps_path
+            logger.info(f"Found Time-Frequency Maps: {tfr_maps_path}")
 
         # Visualization 1: Bilateral ERD timecourse (C3 and C4)
         if tfr is not None:
@@ -2168,19 +3585,9 @@ def save_full_report(
         erd_metrics_c4=erd_metrics_c4,
     )
 
-    # Load visualization figures
-    figures = {}
-    for fig_name, fig_path in visualization_paths.items():
-        if fig_path.exists():
-            try:
-                # Load figure from file
-                fig = plt.figure()
-                img = plt.imread(str(fig_path))
-                plt.imshow(img)
-                plt.axis('off')
-                figures[fig_name] = fig
-            except Exception as e:
-                logger.warning(f"Failed to load figure {fig_name}: {e}")
+    # Pass visualization paths directly (not loaded as figures)
+    # The reporting module expects file paths, not matplotlib Figure objects
+    figures = visualization_paths
 
     # Generate HTML report
     try:
@@ -2394,26 +3801,74 @@ def main() -> int:
             return 0
 
         # =====================================================================
-        # STAGE 4: Preprocessing
+        # =====================================================================
+        # STAGE 4: Preprocessing (or Load Preprocessed Data)
         # =====================================================================
         try:
             logger.info("\n" + "=" * 70)
-            logger.info("STAGE 4: Preprocessing")
-            logger.info("=" * 70)
-            processed_eeg, processed_fnirs = run_preprocessing(
-                raw_eeg, raw_fnirs, config, output_path
-            )
-
-            # Log what was successfully preprocessed
-            if processed_eeg is not None:
-                logger.info(f"✓ EEG preprocessed: {len(processed_eeg.ch_names)} channels")
+            
+            # Check if user wants to load preprocessed data
+            if args.load_preprocessed:
+                logger.info("STAGE 4: Loading Preprocessed Data")
+                logger.info("=" * 70)
+                logger.info("Skipping preprocessing, loading saved preprocessed data...")
+                
+                processed_eeg = None
+                processed_fnirs = None
+                
+                # Load preprocessed EEG if enabled
+                if config.modalities.eeg_enabled:
+                    preprocessed_eeg_filename = (
+                        f"sub-{config.subject.id}_"
+                        f"ses-{config.subject.session}_"
+                        f"task-{config.subject.task}_"
+                        f"desc-preprocessed_eeg.fif"
+                    )
+                    preprocessed_eeg_path = output_path / preprocessed_eeg_filename
+                    
+                    if preprocessed_eeg_path.exists():
+                        logger.info(f"Loading preprocessed EEG from: {preprocessed_eeg_path}")
+                        processed_eeg = mne.io.read_raw_fif(preprocessed_eeg_path, preload=True)
+                        logger.info(f"✓ Loaded preprocessed EEG: {len(processed_eeg.ch_names)} channels")
+                    else:
+                        logger.error(f"Preprocessed EEG file not found: {preprocessed_eeg_path}")
+                        raise FileNotFoundError(f"Preprocessed EEG not found: {preprocessed_eeg_path}")
+                
+                # Load preprocessed fNIRS if enabled
+                if config.modalities.fnirs_enabled:
+                    preprocessed_fnirs_filename = (
+                        f"sub-{config.subject.id}_"
+                        f"ses-{config.subject.session}_"
+                        f"task-{config.subject.task}_"
+                        f"desc-preprocessed_fnirs.fif"
+                    )
+                    preprocessed_fnirs_path = output_path / preprocessed_fnirs_filename
+                    
+                    if preprocessed_fnirs_path.exists():
+                        logger.info(f"Loading preprocessed fNIRS from: {preprocessed_fnirs_path}")
+                        processed_fnirs = mne.io.read_raw_fif(preprocessed_fnirs_path, preload=True)
+                        logger.info(f"✓ Loaded preprocessed fNIRS: {len(processed_fnirs.ch_names)} channels")
+                    else:
+                        logger.warning(f"Preprocessed fNIRS file not found: {preprocessed_fnirs_path}")
+                
             else:
-                logger.info("✗ EEG preprocessing not available")
+                # Normal preprocessing
+                logger.info("STAGE 4: Preprocessing")
+                logger.info("=" * 70)
+                processed_eeg, processed_fnirs = run_preprocessing(
+                    raw_eeg, raw_fnirs, config, output_path
+                )
 
-            if processed_fnirs is not None:
-                logger.info(f"✓ fNIRS preprocessed: {len(processed_fnirs.ch_names)} channels")
-            else:
-                logger.info("✗ fNIRS preprocessing not available")
+                # Log what was successfully preprocessed
+                if processed_eeg is not None:
+                    logger.info(f"✓ EEG preprocessed: {len(processed_eeg.ch_names)} channels")
+                else:
+                    logger.info("✗ EEG preprocessing not available")
+
+                if processed_fnirs is not None:
+                    logger.info(f"✓ fNIRS preprocessed: {len(processed_fnirs.ch_names)} channels")
+                else:
+                    logger.info("✗ fNIRS preprocessing not available")
                 
         except Exception as e:
             raise PipelineError(
@@ -2437,12 +3892,85 @@ def main() -> int:
             # Run EEG analysis if available
             if processed_eeg is not None:
                 try:
-                    logger.info("Running EEG analysis...")
-                    eeg_results = run_eeg_analysis(processed_eeg, config)
-                    logger.info(
-                        f"✓ EEG analysis complete: "
-                        f"{len(eeg_results['erd_ers_results'])} channels analyzed"
-                    )
+                    # Check if user wants to load cleaned epochs (either --load-epochs or --load-preprocessed)
+                    if args.load_epochs or args.load_preprocessed:
+                        logger.info("Loading cleaned epochs and ICA object...")
+                        
+                        # Define file paths
+                        epochs_filename = (
+                            f"sub-{config.subject.id}_"
+                            f"ses-{config.subject.session}_"
+                            f"task-{config.subject.task}_"
+                            f"desc-cleaned_epo.fif"
+                        )
+                        ica_filename = (
+                            f"sub-{config.subject.id}_"
+                            f"ses-{config.subject.session}_"
+                            f"task-{config.subject.task}_"
+                            f"ica.fif"
+                        )
+                        
+                        epochs_path = output_path / epochs_filename
+                        ica_path = output_path / ica_filename
+                        
+                        # Load epochs
+                        if not epochs_path.exists():
+                            raise FileNotFoundError(f"Cleaned epochs file not found: {epochs_path}")
+                        
+                        logger.info(f"Loading cleaned epochs from: {epochs_path}")
+                        epochs = mne.read_epochs(epochs_path, preload=True)
+                        logger.info(f"✓ Loaded {len(epochs)} cleaned epochs")
+                        
+                        # Load ICA (optional, for reference)
+                        if ica_path.exists():
+                            logger.info(f"Loading ICA object from: {ica_path}")
+                            ica = mne.preprocessing.read_ica(ica_path)
+                            logger.info(f"✓ Loaded ICA with {ica.n_components_} components")
+                        else:
+                            logger.warning(f"ICA file not found: {ica_path}")
+                            ica = None
+                        
+                        # Generate clustered PSD plots (if not already generated)
+                        logger.info("Generating clustered PSD plots by hemisphere...")
+                        left_psd_path, left_topo_path, right_psd_path, right_topo_path = generate_clustered_psd_plots(
+                            epochs, output_path, config
+                        )
+                        
+                        # Generate Time-Frequency Maps (most informative canonical plot)
+                        logger.info("Generating Time-Frequency Maps...")
+                        tfr_maps_path = generate_tfr_maps(epochs, output_path, config)
+                        
+                        # Generate contralateral ERD/ERS plots
+                        logger.info("Generating contralateral ERD/ERS plots...")
+                        contralateral_timecourse_path, contralateral_topoplot_path = generate_contralateral_erd_plots(
+                            epochs, output_path, config
+                        )
+                        
+                        # Now run TFR and ERD/ERS analysis on loaded epochs
+                        logger.info("Running EEG analysis on loaded epochs (TFR + ERD/ERS)...")
+                        eeg_results = run_eeg_analysis_from_epochs(epochs, processed_eeg, config, output_path)
+                        
+                        # Add PSD, topoplot, TFR maps, and contralateral ERD paths to results
+                        eeg_results['left_psd_path'] = left_psd_path
+                        eeg_results['left_topo_path'] = left_topo_path
+                        eeg_results['right_psd_path'] = right_psd_path
+                        eeg_results['right_topo_path'] = right_topo_path
+                        eeg_results['tfr_maps_path'] = tfr_maps_path
+                        eeg_results['contralateral_timecourse_path'] = contralateral_timecourse_path
+                        eeg_results['contralateral_topoplot_path'] = contralateral_topoplot_path
+                        
+                        logger.info(
+                            f"✓ EEG analysis complete: "
+                            f"{len(eeg_results['erd_ers_results'])} channels analyzed"
+                        )
+                    else:
+                        # Normal flow: run full EEG analysis (epoching + ICA + TFR + ERD/ERS)
+                        logger.info("Running EEG analysis...")
+                        eeg_results = run_eeg_analysis(processed_eeg, config, output_path)
+                        logger.info(
+                            f"✓ EEG analysis complete: "
+                            f"{len(eeg_results['erd_ers_results'])} channels analyzed"
+                        )
                 except Exception as e:
                     logger.error(f"EEG analysis failed: {e}")
                     # Don't raise - allow pipeline to continue with other modalities

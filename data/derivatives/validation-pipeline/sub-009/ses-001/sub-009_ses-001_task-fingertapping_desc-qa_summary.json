@@ -2,17 +2,19 @@
   "subject_id": "009",
   "session_id": "001",
   "task": "fingertapping",
-  "timestamp": "2026-01-14T17:27:20.493477",
+  "timestamp": "2026-01-16T04:56:10.384177",
   "eeg_quality": {
     "n_channels": 30,
     "n_good": 0,
-    "n_fair": 2,
-    "n_poor": 28,
+    "n_fair": 12,
+    "n_poor": 18,
     "channels": [
       {
         "channel_name": "Fp1",
         "mean_correlation": 0.6886124562697687,
         "signal_variance": 1.1619169269025476e-13,
+        "amplitude_range_uv": 2.008764113270445,
+        "std_uv": 0.3408690257125965,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -20,6 +22,8 @@
         "channel_name": "Fz",
         "mean_correlation": 0.6781586700940798,
         "signal_variance": 2.4679410260757687e-13,
+        "amplitude_range_uv": 2.1677246877516154,
+        "std_uv": 0.4967837583975314,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -27,6 +31,8 @@
         "channel_name": "F3",
         "mean_correlation": 0.13643651717559913,
         "signal_variance": 8.709790423747288e-15,
+        "amplitude_range_uv": 0.8358153991139261,
+        "std_uv": 0.09332625795427184,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -34,6 +40,8 @@
         "channel_name": "F7",
         "mean_correlation": 0.26960302751848986,
         "signal_variance": 5.1186798199126254e-14,
+        "amplitude_range_uv": 2.617797775883446,
+        "std_uv": 0.2262449959648307,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -41,6 +49,8 @@
         "channel_name": "F9",
         "mean_correlation": -0.503866662941205,
         "signal_variance": 6.462611450804541e-14,
+        "amplitude_range_uv": 1.6709960277694336,
+        "std_uv": 0.2542166684307805,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -48,6 +58,8 @@
         "channel_name": "FC5",
         "mean_correlation": 0.6854010407996596,
         "signal_variance": 4.5175601435072276e-14,
+        "amplitude_range_uv": 1.3403320053839707,
+        "std_uv": 0.21254552791125075,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -55,20 +67,26 @@
         "channel_name": "FC1",
         "mean_correlation": 0.6661022454800334,
         "signal_variance": 6.285995066135466e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 3.3035403248504736,
+        "std_uv": 0.7928426745663647,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "C3",
         "mean_correlation": 0.6828992244425585,
         "signal_variance": 3.528018957429807e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 2.7198484531254508,
+        "std_uv": 0.5939712920192193,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "T7",
         "mean_correlation": 0.7023547490388193,
         "signal_variance": 3.2579762344129315e-14,
+        "amplitude_range_uv": 1.1762206213461468,
+        "std_uv": 0.18049864914765792,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -76,6 +94,8 @@
         "channel_name": "CP1",
         "mean_correlation": 0.6362630221438386,
         "signal_variance": 2.43867357997621e-14,
+        "amplitude_range_uv": 1.0918211046373472,
+        "std_uv": 0.15616253007607842,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -83,34 +103,44 @@
         "channel_name": "Pz",
         "mean_correlation": -0.3343731844008039,
         "signal_variance": 7.059418265905821e-10,
-        "quality_status": "fair",
-        "is_bad": false
+        "amplitude_range_uv": 409.42565829027444,
+        "std_uv": 26.569565796049098,
+        "quality_status": "poor",
+        "is_bad": true
       },
       {
         "channel_name": "P3",
         "mean_correlation": 0.6684853915490474,
         "signal_variance": 6.758912584858376e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 3.392700364202028,
+        "std_uv": 0.822126059972458,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "P7",
         "mean_correlation": 0.6835787511749026,
         "signal_variance": 3.425952929836438e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 2.6820061975740828,
+        "std_uv": 0.5853164041641442,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "P9",
         "mean_correlation": 0.6778403855712296,
         "signal_variance": 2.745702907165843e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 2.5588379060081934,
+        "std_uv": 0.5239945521821617,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "O1",
         "mean_correlation": 0.6901525636574574,
         "signal_variance": 1.6651932048590298e-13,
+        "amplitude_range_uv": 1.9226561107643647,
+        "std_uv": 0.4080677890815483,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -118,13 +148,17 @@
         "channel_name": "Oz",
         "mean_correlation": 0.6784531358750799,
         "signal_variance": 4.3635707385541195e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 3.106274391484476,
+        "std_uv": 0.6605732918120532,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "O2",
         "mean_correlation": 0.6989915271693157,
         "signal_variance": 1.181572873999496e-13,
+        "amplitude_range_uv": 1.8792966329783667,
+        "std_uv": 0.3437401451677554,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -132,20 +166,26 @@
         "channel_name": "P10",
         "mean_correlation": 0.6843921646448526,
         "signal_variance": 3.91483274395593e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 2.780615091069194,
+        "std_uv": 0.6256862427731594,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "P8",
         "mean_correlation": 0.6868567711007197,
         "signal_variance": 2.878590829773506e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 2.424023477942683,
+        "std_uv": 0.5365250068518248,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "P4",
         "mean_correlation": 0.6982203325834999,
         "signal_variance": 1.5578244094352927e-13,
+        "amplitude_range_uv": 1.9623289517767262,
+        "std_uv": 0.3946928437956904,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -153,13 +193,17 @@
         "channel_name": "CP2",
         "mean_correlation": 0.6825208911239202,
         "signal_variance": 3.468859335635901e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 2.6853517738345545,
+        "std_uv": 0.5889702314748939,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "T8",
         "mean_correlation": -0.42589829786029243,
         "signal_variance": 8.210627288882963e-11,
+        "amplitude_range_uv": 86.4261164679192,
+        "std_uv": 9.061251176787321,
         "quality_status": "fair",
         "is_bad": false
       },
@@ -167,13 +211,17 @@
         "channel_name": "C4",
         "mean_correlation": 0.6672363787737488,
         "signal_variance": 6.973924868781176e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 3.4979739211848937,
+        "std_uv": 0.835100285521516,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "Cz",
         "mean_correlation": 0.6773389928650893,
         "signal_variance": 2.479878306481325e-13,
+        "amplitude_range_uv": 2.3045895432005636,
+        "std_uv": 0.49798376544635714,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -181,13 +229,17 @@
         "channel_name": "FC2",
         "mean_correlation": 0.68049943925931,
         "signal_variance": 3.753758633623937e-13,
-        "quality_status": "poor",
-        "is_bad": true
+        "amplitude_range_uv": 2.6800535124493763,
+        "std_uv": 0.6126792499851726,
+        "quality_status": "fair",
+        "is_bad": false
       },
       {
         "channel_name": "FC6",
         "mean_correlation": 0.1296002609229946,
         "signal_variance": 1.2748382026319573e-14,
+        "amplitude_range_uv": 0.910302560441778,
+        "std_uv": 0.1129087331711749,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -195,6 +247,8 @@
         "channel_name": "F10",
         "mean_correlation": 0.6606388807529943,
         "signal_variance": 2.910784889101371e-14,
+        "amplitude_range_uv": 1.2968993701178988,
+        "std_uv": 0.17061022504824763,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -202,6 +256,8 @@
         "channel_name": "F8",
         "mean_correlation": 0.6986703054739469,
         "signal_variance": 4.395015527007166e-14,
+        "amplitude_range_uv": 1.4156005079257739,
+        "std_uv": 0.20964292325302006,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -209,6 +265,8 @@
         "channel_name": "F4",
         "mean_correlation": 0.6844865320879769,
         "signal_variance": 1.823840119793192e-13,
+        "amplitude_range_uv": 2.156591563107213,
+        "std_uv": 0.42706441197941,
         "quality_status": "poor",
         "is_bad": true
       },
@@ -216,10 +274,423 @@
         "channel_name": "Fp2",
         "mean_correlation": 0.4456084199666942,
         "signal_variance": 1.0458210670655729e-14,
+        "amplitude_range_uv": 0.7992189239303116,
+        "std_uv": 0.10226539331883357,
         "quality_status": "poor",
         "is_bad": true
       }
     ]
   },
-  "fnirs_quality": null
+  "fnirs_quality": {
+    "n_total_channels": 42,
+    "n_bad_channels": 12,
+    "mean_sci": 0.0,
+    "mean_saturation": 0.04803425901049426,
+    "mean_cardiac_power": 1.1952235523991575,
+    "mean_cv": 1.7828419299312732,
+    "channels": [
+      {
+        "channel_name": "S1_D1 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.7315870676816663,
+        "cv": 0.6318423881566582,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.28 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S1_D1 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2339995997224156,
+        "cv": 0.5062658625529909,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.28 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S2_D2 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.3851346514144427,
+        "cv": 0.42344944886158986,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.72 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S2_D2 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.307139327824089,
+        "cv": 2.7673402237942892,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.72 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S7_D1 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.9192659360388894,
+        "cv": 0.725600362324309,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.50 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S7_D1 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2680778771790373,
+        "cv": 0.7394807556240428,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.50 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S8_D2 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.7909049363217043,
+        "cv": 0.5083182762863998,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.34 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S8_D2 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2092670605704823,
+        "cv": 0.5299479835718556,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.34 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S5_D3 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.9499317608736908,
+        "cv": 0.4650202744473046,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.71 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S5_D3 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1724211456728477,
+        "cv": 0.7847893003045456,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.71 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S6_D4 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2802571960582285,
+        "cv": 1.0727538029788093,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S6_D4 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.0701875303584483,
+        "cv": 1.6375813713861271,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S7_D3 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2028777254474599,
+        "cv": 1.097557631841666,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S7_D3 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2612164536872565,
+        "cv": 1.3702394461934748,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S8_D4 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.8607822468925986,
+        "cv": 0.9940550039380103,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.54 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S8_D4 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1340316981014884,
+        "cv": 1.889572459525568,
+        "is_bad": true,
+        "reason": [
+          "Low SCI (0.54 < 0.75)"
+        ]
+      },
+      {
+        "channel_name": "S3_D5 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.0471529767858219,
+        "cv": 2.1407656531936614,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S3_D5 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1644263886328579,
+        "cv": 2.6008664379689947,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S4_D6 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1235415976535765,
+        "cv": 1.8993174449706736,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S4_D6 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.2124824261662441,
+        "cv": 3.178735023841718,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S5_D5 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1093974611210027,
+        "cv": 2.7401117306502925,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S5_D5 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1398164144949834,
+        "cv": 2.7815629976559815,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S6_D6 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1248913871321906,
+        "cv": 1.198791354019263,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S6_D6 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.229085547926341,
+        "cv": 1.3743497440761623,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S1_D7 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 2.6391084522493244,
+        "cv": 2.4061038793845433,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S1_D7 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 2.6291667249605317,
+        "cv": 3.7887539075937995,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S2_D8 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.9362724227465087,
+        "cv": 4.116624138484233,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S2_D8 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.809251714131966,
+        "cv": 5.644200030482377,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S3_D7 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.9629136664483795,
+        "cv": 4.700554775462151,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S3_D7 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.905364284885438,
+        "cv": 7.611127862480004,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S4_D8 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.0581928993742602,
+        "cv": 2.0651887804281666,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S4_D8 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.1722292979084972,
+        "cv": 2.12104857913389,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S13_D3 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 2.0627062363336663,
+        "cv": 1.9246040435526837,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S13_D3 850",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 1.683835187009656,
+        "cv": 2.561086909301871,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S14_D4 760",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 2.186141943584556,
+        "cv": 2.128458184968954,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "S14_D4 850",
+        "sci": 0.0,
+        "saturation_percent": 2.017438878440759,
+        "cardiac_power": 2.2263299573740643,
+        "cv": 1.7532949876764143,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "AUX_000",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "AUX_001",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "AUX_002",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "AUX_003",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "AUX_004",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": ""
+      },
+      {
+        "channel_name": "AUX_005",
+        "sci": 0.0,
+        "saturation_percent": 0.0,
+        "cardiac_power": 0.0,
+        "cv": 0.0,
+        "is_bad": false,
+        "reason": ""
+      }
+    ]
+  }
 }
