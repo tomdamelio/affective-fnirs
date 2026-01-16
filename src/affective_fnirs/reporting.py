@@ -687,6 +687,70 @@ def generate_validation_report_html(
                 """
                 report.add_html(tfr_maps_html, title="1.0.3 Time-Frequency Maps")
     
+    # 1.0.3.1: Contrast Analysis (Detecting Lateralization Effects)
+    if "eeg_contrast_analysis" in figures and figures["eeg_contrast_analysis"] is not None:
+        import base64
+        from pathlib import Path
+        
+        logger.info(f"DEBUG: eeg_contrast_analysis found in figures")
+        contrast_analysis_value = figures["eeg_contrast_analysis"]
+        logger.info(f"DEBUG: contrast_analysis_value = {contrast_analysis_value}, type = {type(contrast_analysis_value)}")
+        
+        if isinstance(contrast_analysis_value, (str, Path)):
+            contrast_analysis_path = Path(contrast_analysis_value)
+            logger.info(f"DEBUG: contrast_analysis_path = {contrast_analysis_path}")
+            logger.info(f"DEBUG: contrast_analysis_path.exists() = {contrast_analysis_path.exists()}")
+            
+            if contrast_analysis_path.exists():
+                logger.info(f"DEBUG: Reading contrast analysis image from {contrast_analysis_path}")
+                with open(contrast_analysis_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                logger.info(f"DEBUG: Image data length = {len(img_data)}")
+                
+                contrast_analysis_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.3.1 Contrast Analysis: Detecting Lateralization Effects</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        <strong>Three contrast strategies</strong> to isolate motor lateralization effects:
+                        <br><br>
+                        <strong>Row 1: Lateralization Contrast (Contralateral vs Ipsilateral)</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>C3:</strong> RIGHT (contralateral) - LEFT (ipsilateral) → Expected: <strong>Negative</strong> (more ERD for contralateral)</li>
+                            <li><strong>C4:</strong> LEFT (contralateral) - RIGHT (ipsilateral) → Expected: <strong>Negative</strong> (more ERD for contralateral)</li>
+                        </ul>
+                        <br>
+                        <strong>Row 2: Motor Execution Contrast (if NOTHING available)</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>(LEFT + RIGHT)/2 vs NOTHING:</strong> Shows motor execution network activation</li>
+                            <li>Expected: <strong>Negative</strong> during movement (ERD in motor areas)</li>
+                        </ul>
+                        <br>
+                        <strong>Row 3 (or Row 2): Lateralization Index</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>LEFT - RIGHT:</strong> Eliminates common activity, isolates lateralized motor activity</li>
+                            <li><strong>C3:</strong> Expected <strong>Positive</strong> (LEFT ipsilateral, RIGHT contralateral)</li>
+                            <li><strong>C4:</strong> Expected <strong>Positive</strong> (LEFT contralateral, RIGHT ipsilateral)</li>
+                        </ul>
+                        <br>
+                        <strong>Color scale:</strong> Blue = negative contrast (more ERD in first condition), Red = positive contrast (more ERD in second condition)
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="Contrast Analysis">
+                </div>
+                """
+                logger.info(f"DEBUG: Adding contrast analysis HTML to report")
+                report.add_html(contrast_analysis_html, title="1.0.3.1 Contrast Analysis")
+                logger.info(f"DEBUG: Contrast analysis HTML added successfully")
+            else:
+                logger.warning(f"DEBUG: Contrast analysis path does not exist: {contrast_analysis_path}")
+        else:
+            logger.warning(f"DEBUG: contrast_analysis_value is not a string or Path")
+    else:
+        logger.warning(f"DEBUG: eeg_contrast_analysis not in figures or is None")
+        logger.warning(f"DEBUG: figures keys = {list(figures.keys())}")
+    
     # 1.0.4: Contralateral ERD/ERS Timecourse
     if "eeg_contralateral_timecourse" in figures and figures["eeg_contralateral_timecourse"] is not None:
         import base64

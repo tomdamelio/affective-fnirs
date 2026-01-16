@@ -361,6 +361,305 @@ def generate_tfr_maps(
         return None
 
 
+def generate_contrast_analysis(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> tuple[Optional[Path], Optional[Path]]:
+    """
+    Generate contrast analysis plots to detect lateralization effects.
+    
+    Implements three contrast strategies:
+    A. Motor Execution: (LEFT + RIGHT) vs NOTHING
+    B. Lateralization: Contralateral vs Ipsilateral for each hemisphere
+    C. Lateralization Index: LEFT - RIGHT difference maps
+    
+    Args:
+        epochs: MNE Epochs object with condition information
+        output_path: Directory to save plots
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Tuple of (contrast_tfr_path, lateralization_index_path) or (None, None) if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Check conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        has_nothing = any('NOTHING' in cond for cond in conditions)
+        
+        if not (has_left and has_right):
+            logger.warning("Need both LEFT and RIGHT conditions for contrast analysis")
+            return None, None
+        
+        # Check channels
+        if 'C3' not in epochs.ch_names or 'C4' not in epochs.ch_names:
+            logger.warning("Need C3 and C4 channels for contrast analysis")
+            return None, None
+        
+        logger.info("Generating Contrast Analysis plots...")
+        
+        from affective_fnirs.eeg_analysis import compute_tfr
+        
+        # Frequency range: focus on alpha and beta
+        freqs = np.arange(8, 31, 1)
+        
+        # Get conditions
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        nothing_cond = [c for c in conditions if 'NOTHING' in c][0] if has_nothing else None
+        
+        # Compute TFR for each condition
+        logger.info(f"Computing TFR for contrast analysis...")
+        tfr_left = compute_tfr(
+            epochs[left_cond],
+            freqs=freqs,
+            n_cycles=freqs / 2.0,
+            baseline=(config.analysis.baseline_window_start_sec,
+                     config.analysis.baseline_window_end_sec),
+            baseline_mode="percent",
+        )
+        
+        tfr_right = compute_tfr(
+            epochs[right_cond],
+            freqs=freqs,
+            n_cycles=freqs / 2.0,
+            baseline=(config.analysis.baseline_window_start_sec,
+                     config.analysis.baseline_window_end_sec),
+            baseline_mode="percent",
+        )
+        
+        tfr_nothing = None
+        if nothing_cond:
+            tfr_nothing = compute_tfr(
+                epochs[nothing_cond],
+                freqs=freqs,
+                n_cycles=freqs / 2.0,
+                baseline=(config.analysis.baseline_window_start_sec,
+                         config.analysis.baseline_window_end_sec),
+                baseline_mode="percent",
+            )
+        
+        # =====================================================================
+        # Plot 1: Contrast TFR Maps
+        # =====================================================================
+        n_rows = 3 if tfr_nothing else 2
+        fig, axes = plt.subplots(n_rows, 2, figsize=(16, 6*n_rows))
+        
+        # Time window
+        tmin = -1.0
+        tmax = config.trials.task_duration_sec + 2.0
+        
+        # Get channel indices
+        c3_idx = tfr_left.ch_names.index('C3')
+        c4_idx = tfr_left.ch_names.index('C4')
+        
+        # Row 1: Lateralization Contrast (Contralateral vs Ipsilateral)
+        # C3: RIGHT (contralateral) vs LEFT (ipsilateral)
+        contrast_c3 = tfr_right.data[c3_idx, :, :] - tfr_left.data[c3_idx, :, :]
+        vmax_c3 = max(abs(np.percentile(contrast_c3, 5)), abs(np.percentile(contrast_c3, 95)))
+        
+        im = axes[0, 0].imshow(
+            contrast_c3,
+            aspect='auto',
+            origin='lower',
+            extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+            cmap='RdBu_r',
+            vmin=-vmax_c3,
+            vmax=vmax_c3,
+        )
+        axes[0, 0].axvline(0, color='black', linestyle='--', linewidth=2)
+        axes[0, 0].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        axes[0, 0].set_xlim(tmin, tmax)
+        axes[0, 0].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+        axes[0, 0].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+        axes[0, 0].set_title('C3: RIGHT (contra) - LEFT (ipsi)\nExpected: Negative (more ERD for contra)', 
+                            fontsize=13, fontweight='bold')
+        plt.colorbar(im, ax=axes[0, 0], label='Contrast (%)')
+        
+        # C4: LEFT (contralateral) vs RIGHT (ipsilateral)
+        contrast_c4 = tfr_left.data[c4_idx, :, :] - tfr_right.data[c4_idx, :, :]
+        vmax_c4 = max(abs(np.percentile(contrast_c4, 5)), abs(np.percentile(contrast_c4, 95)))
+        
+        im = axes[0, 1].imshow(
+            contrast_c4,
+            aspect='auto',
+            origin='lower',
+            extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+            cmap='RdBu_r',
+            vmin=-vmax_c4,
+            vmax=vmax_c4,
+        )
+        axes[0, 1].axvline(0, color='black', linestyle='--', linewidth=2)
+        axes[0, 1].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        axes[0, 1].set_xlim(tmin, tmax)
+        axes[0, 1].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+        axes[0, 1].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+        axes[0, 1].set_title('C4: LEFT (contra) - RIGHT (ipsi)\nExpected: Negative (more ERD for contra)', 
+                            fontsize=13, fontweight='bold')
+        plt.colorbar(im, ax=axes[0, 1], label='Contrast (%)')
+        
+        # Row 2: Motor Execution Contrast (if NOTHING available)
+        if tfr_nothing:
+            # C3: (LEFT + RIGHT)/2 vs NOTHING
+            motor_avg_c3 = (tfr_left.data[c3_idx, :, :] + tfr_right.data[c3_idx, :, :]) / 2
+            contrast_motor_c3 = motor_avg_c3 - tfr_nothing.data[c3_idx, :, :]
+            vmax_mc3 = max(abs(np.percentile(contrast_motor_c3, 5)), abs(np.percentile(contrast_motor_c3, 95)))
+            
+            im = axes[1, 0].imshow(
+                contrast_motor_c3,
+                aspect='auto',
+                origin='lower',
+                extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+                cmap='RdBu_r',
+                vmin=-vmax_mc3,
+                vmax=vmax_mc3,
+            )
+            axes[1, 0].axvline(0, color='black', linestyle='--', linewidth=2)
+            axes[1, 0].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+            axes[1, 0].set_xlim(tmin, tmax)
+            axes[1, 0].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+            axes[1, 0].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+            axes[1, 0].set_title('C3: Motor Execution (L+R)/2 - NOTHING\nExpected: Negative during movement', 
+                                fontsize=13, fontweight='bold')
+            plt.colorbar(im, ax=axes[1, 0], label='Contrast (%)')
+            
+            # C4: (LEFT + RIGHT)/2 vs NOTHING
+            motor_avg_c4 = (tfr_left.data[c4_idx, :, :] + tfr_right.data[c4_idx, :, :]) / 2
+            contrast_motor_c4 = motor_avg_c4 - tfr_nothing.data[c4_idx, :, :]
+            vmax_mc4 = max(abs(np.percentile(contrast_motor_c4, 5)), abs(np.percentile(contrast_motor_c4, 95)))
+            
+            im = axes[1, 1].imshow(
+                contrast_motor_c4,
+                aspect='auto',
+                origin='lower',
+                extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+                cmap='RdBu_r',
+                vmin=-vmax_mc4,
+                vmax=vmax_mc4,
+            )
+            axes[1, 1].axvline(0, color='black', linestyle='--', linewidth=2)
+            axes[1, 1].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+            axes[1, 1].set_xlim(tmin, tmax)
+            axes[1, 1].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+            axes[1, 1].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+            axes[1, 1].set_title('C4: Motor Execution (L+R)/2 - NOTHING\nExpected: Negative during movement', 
+                                fontsize=13, fontweight='bold')
+            plt.colorbar(im, ax=axes[1, 1], label='Contrast (%)')
+            
+            # Row 3: Lateralization Index (LEFT - RIGHT)
+            lat_index_c3 = tfr_left.data[c3_idx, :, :] - tfr_right.data[c3_idx, :, :]
+            vmax_li_c3 = max(abs(np.percentile(lat_index_c3, 5)), abs(np.percentile(lat_index_c3, 95)))
+            
+            im = axes[2, 0].imshow(
+                lat_index_c3,
+                aspect='auto',
+                origin='lower',
+                extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+                cmap='RdBu_r',
+                vmin=-vmax_li_c3,
+                vmax=vmax_li_c3,
+            )
+            axes[2, 0].axvline(0, color='black', linestyle='--', linewidth=2)
+            axes[2, 0].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+            axes[2, 0].set_xlim(tmin, tmax)
+            axes[2, 0].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+            axes[2, 0].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+            axes[2, 0].set_title('C3: Lateralization Index (LEFT - RIGHT)\nExpected: Positive (LEFT ipsi, RIGHT contra)', 
+                                fontsize=13, fontweight='bold')
+            plt.colorbar(im, ax=axes[2, 0], label='Index (%)')
+            
+            lat_index_c4 = tfr_left.data[c4_idx, :, :] - tfr_right.data[c4_idx, :, :]
+            vmax_li_c4 = max(abs(np.percentile(lat_index_c4, 5)), abs(np.percentile(lat_index_c4, 95)))
+            
+            im = axes[2, 1].imshow(
+                lat_index_c4,
+                aspect='auto',
+                origin='lower',
+                extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+                cmap='RdBu_r',
+                vmin=-vmax_li_c4,
+                vmax=vmax_li_c4,
+            )
+            axes[2, 1].axvline(0, color='black', linestyle='--', linewidth=2)
+            axes[2, 1].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+            axes[2, 1].set_xlim(tmin, tmax)
+            axes[2, 1].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+            axes[2, 1].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+            axes[2, 1].set_title('C4: Lateralization Index (LEFT - RIGHT)\nExpected: Positive (LEFT contra, RIGHT ipsi)', 
+                                fontsize=13, fontweight='bold')
+            plt.colorbar(im, ax=axes[2, 1], label='Index (%)')
+        else:
+            # Only lateralization index if no NOTHING condition
+            lat_index_c3 = tfr_left.data[c3_idx, :, :] - tfr_right.data[c3_idx, :, :]
+            vmax_li_c3 = max(abs(np.percentile(lat_index_c3, 5)), abs(np.percentile(lat_index_c3, 95)))
+            
+            im = axes[1, 0].imshow(
+                lat_index_c3,
+                aspect='auto',
+                origin='lower',
+                extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+                cmap='RdBu_r',
+                vmin=-vmax_li_c3,
+                vmax=vmax_li_c3,
+            )
+            axes[1, 0].axvline(0, color='black', linestyle='--', linewidth=2)
+            axes[1, 0].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+            axes[1, 0].set_xlim(tmin, tmax)
+            axes[1, 0].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+            axes[1, 0].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+            axes[1, 0].set_title('C3: Lateralization Index (LEFT - RIGHT)', fontsize=13, fontweight='bold')
+            plt.colorbar(im, ax=axes[1, 0], label='Index (%)')
+            
+            lat_index_c4 = tfr_left.data[c4_idx, :, :] - tfr_right.data[c4_idx, :, :]
+            vmax_li_c4 = max(abs(np.percentile(lat_index_c4, 5)), abs(np.percentile(lat_index_c4, 95)))
+            
+            im = axes[1, 1].imshow(
+                lat_index_c4,
+                aspect='auto',
+                origin='lower',
+                extent=[tfr_left.times[0], tfr_left.times[-1], freqs[0], freqs[-1]],
+                cmap='RdBu_r',
+                vmin=-vmax_li_c4,
+                vmax=vmax_li_c4,
+            )
+            axes[1, 1].axvline(0, color='black', linestyle='--', linewidth=2)
+            axes[1, 1].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+            axes[1, 1].set_xlim(tmin, tmax)
+            axes[1, 1].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+            axes[1, 1].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+            axes[1, 1].set_title('C4: Lateralization Index (LEFT - RIGHT)', fontsize=13, fontweight='bold')
+            plt.colorbar(im, ax=axes[1, 1], label='Index (%)')
+        
+        fig.suptitle('Contrast Analysis: Detecting Lateralization Effects', 
+                    fontsize=18, fontweight='bold', y=0.995)
+        fig.tight_layout(rect=[0, 0, 1, 0.99])
+        
+        # Save figure
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-contrast_analysis.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"Contrast Analysis saved to: {filepath}")
+        
+        return filepath, None
+        
+    except Exception as e:
+        logger.error(f"Failed to generate contrast analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, None
+
+
 def generate_contralateral_erd_plots(
     epochs: mne.Epochs,
     output_path: Path,
@@ -2447,6 +2746,10 @@ def run_eeg_analysis(
         logger.info("Generating Time-Frequency Maps...")
         tfr_maps_path = generate_tfr_maps(epochs, output_path, config)
         
+        # Generate Contrast Analysis (lateralization detection)
+        logger.info("Generating Contrast Analysis...")
+        contrast_analysis_path, _ = generate_contrast_analysis(epochs, output_path, config)
+        
         # Generate contralateral ERD/ERS plots
         logger.info("Generating contralateral ERD/ERS plots...")
         contralateral_timecourse_path, contralateral_topoplot_path = generate_contralateral_erd_plots(
@@ -2567,6 +2870,7 @@ def run_eeg_analysis(
         "right_psd_path": right_psd_path,
         "right_topo_path": right_topo_path,
         "tfr_maps_path": tfr_maps_path,
+        "contrast_analysis_path": contrast_analysis_path,
         "contralateral_timecourse_path": contralateral_timecourse_path,
         "contralateral_topoplot_path": contralateral_topoplot_path,
     }
@@ -2740,6 +3044,7 @@ def run_eeg_analysis_from_epochs(
         "right_psd_path": None,  # Already generated
         "right_topo_path": None,  # Already generated
         "tfr_maps_path": None,  # Already generated
+        "contrast_analysis_path": None,  # Already generated
         "contralateral_timecourse_path": None,  # Already generated
         "contralateral_topoplot_path": None,  # Already generated
     }
@@ -3178,6 +3483,12 @@ def generate_visualizations(
         if tfr_maps_path and tfr_maps_path.exists():
             visualization_paths["eeg_tfr_maps"] = tfr_maps_path
             logger.info(f"Found Time-Frequency Maps: {tfr_maps_path}")
+        
+        # Add Contrast Analysis if it exists
+        contrast_analysis_path = eeg_results.get("contrast_analysis_path")
+        if contrast_analysis_path and contrast_analysis_path.exists():
+            visualization_paths["eeg_contrast_analysis"] = contrast_analysis_path
+            logger.info(f"Found Contrast Analysis: {contrast_analysis_path}")
 
         # Visualization 1: Bilateral ERD timecourse (C3 and C4)
         if tfr is not None:
@@ -3940,6 +4251,10 @@ def main() -> int:
                         logger.info("Generating Time-Frequency Maps...")
                         tfr_maps_path = generate_tfr_maps(epochs, output_path, config)
                         
+                        # Generate Contrast Analysis (lateralization detection)
+                        logger.info("Generating Contrast Analysis...")
+                        contrast_analysis_path, _ = generate_contrast_analysis(epochs, output_path, config)
+                        
                         # Generate contralateral ERD/ERS plots
                         logger.info("Generating contralateral ERD/ERS plots...")
                         contralateral_timecourse_path, contralateral_topoplot_path = generate_contralateral_erd_plots(
@@ -3950,12 +4265,13 @@ def main() -> int:
                         logger.info("Running EEG analysis on loaded epochs (TFR + ERD/ERS)...")
                         eeg_results = run_eeg_analysis_from_epochs(epochs, processed_eeg, config, output_path)
                         
-                        # Add PSD, topoplot, TFR maps, and contralateral ERD paths to results
+                        # Add PSD, topoplot, TFR maps, contrast analysis, and contralateral ERD paths to results
                         eeg_results['left_psd_path'] = left_psd_path
                         eeg_results['left_topo_path'] = left_topo_path
                         eeg_results['right_psd_path'] = right_psd_path
                         eeg_results['right_topo_path'] = right_topo_path
                         eeg_results['tfr_maps_path'] = tfr_maps_path
+                        eeg_results['contrast_analysis_path'] = contrast_analysis_path
                         eeg_results['contralateral_timecourse_path'] = contralateral_timecourse_path
                         eeg_results['contralateral_topoplot_path'] = contralateral_topoplot_path
                         
