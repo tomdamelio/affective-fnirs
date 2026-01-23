@@ -790,8 +790,17 @@ def convert_to_hemoglobin(
         f"concentrations using DPF={dpf}"
     )
 
-    # Convert to hemoglobin using MNE-NIRS
+    # Try MNE's beer_lambert_law first
     raw_haemo = mne.preprocessing.nirs.beer_lambert_law(raw_od, ppf=dpf)
+    
+    # Check if MNE's implementation produced valid data
+    haemo_data = raw_haemo.get_data()
+    if haemo_data.max() == 0 and haemo_data.min() == 0:
+        logger.warning(
+            "MNE's beer_lambert_law produced all zeros. "
+            "Using custom implementation."
+        )
+        raw_haemo = _custom_beer_lambert_law(raw_od, dpf=dpf)
 
     # Verify channel types changed
     haemo_types = raw_haemo.get_channel_types()
@@ -810,6 +819,155 @@ def convert_to_hemoglobin(
     ]
     logger.debug(f"HbO channels (first 3): {hbo_channels[:3]}")
 
+    return raw_haemo
+
+
+def _custom_beer_lambert_law(
+    raw_od: mne.io.Raw,
+    dpf: float = 6.0,
+) -> mne.io.Raw:
+    """
+    Custom implementation of Modified Beer-Lambert Law.
+    
+    This is a fallback when MNE's implementation fails (produces all zeros).
+    
+    Args:
+        raw_od: MNE Raw object with optical density data
+        dpf: Differential Pathlength Factor
+        
+    Returns:
+        MNE Raw object with hemoglobin concentration data
+    """
+    # Extinction coefficients (cm^-1 / M) from Cope (1991)
+    # Values for 760nm and 850nm
+    ext_coef = {
+        760: {'hbo': 1486.5865, 'hbr': 3843.707},
+        850: {'hbo': 2526.391, 'hbr': 1798.643},
+    }
+    
+    # Find wavelength pairs
+    ch_names = raw_od.ch_names
+    pairs = {}
+    
+    for i, ch_name in enumerate(ch_names):
+        # Parse channel name: "S1_D1 760" -> ("S1_D1", 760)
+        parts = ch_name.rsplit(' ', 1)
+        if len(parts) != 2:
+            logger.warning(f"Cannot parse channel name: {ch_name}")
+            continue
+            
+        sd_pair = parts[0]
+        try:
+            wavelength = float(parts[1])
+        except ValueError:
+            logger.warning(f"Cannot parse wavelength from: {ch_name}")
+            continue
+        
+        if sd_pair not in pairs:
+            pairs[sd_pair] = {}
+        pairs[sd_pair][wavelength] = i
+    
+    # Get source-detector distances
+    distances = []
+    for i in range(len(ch_names)):
+        ch_info = raw_od.info['chs'][i]
+        src_pos = ch_info['loc'][:3]
+        det_pos = ch_info['loc'][3:6]
+        
+        if np.any(np.isnan(src_pos)) or np.any(np.isnan(det_pos)):
+            # Use default distance of 3cm if positions not available
+            distance_m = 0.03
+        else:
+            distance_m = np.linalg.norm(src_pos - det_pos)
+        
+        distances.append(distance_m)
+    
+    # Prepare output data
+    od_data = raw_od.get_data()
+    n_pairs = len([p for p in pairs.values() if 760.0 in p and 850.0 in p])
+    n_times = od_data.shape[1]
+    
+    hbo_data = []
+    hbr_data = []
+    hbo_names = []
+    hbr_names = []
+    hbo_locs = []
+    hbr_locs = []
+    
+    # Process each source-detector pair
+    for sd_pair, wavelengths in pairs.items():
+        if 760.0 not in wavelengths or 850.0 not in wavelengths:
+            logger.warning(f"Incomplete pair {sd_pair}: {list(wavelengths.keys())}")
+            continue
+        
+        idx_760 = wavelengths[760.0]
+        idx_850 = wavelengths[850.0]
+        
+        # Get OD data
+        od_760 = od_data[idx_760]
+        od_850 = od_data[idx_850]
+        
+        # Get distance (in cm)
+        distance_m = distances[idx_760]
+        distance_cm = distance_m * 100
+        
+        # Scale factor
+        scale = distance_cm * dpf
+        
+        # Build extinction coefficient matrix
+        E = np.array([
+            [ext_coef[760]['hbo'], ext_coef[760]['hbr']],
+            [ext_coef[850]['hbo'], ext_coef[850]['hbr']]
+        ])
+        
+        # Invert matrix
+        E_inv = np.linalg.inv(E)
+        
+        # Stack OD data
+        od_matrix = np.vstack([od_760, od_850])
+        
+        # Calculate concentrations: [HbO, HbR] = E_inv @ [OD_760, OD_850] / scale
+        conc = E_inv @ od_matrix / scale
+        
+        hbo = conc[0]
+        hbr = conc[1]
+        
+        hbo_data.append(hbo)
+        hbr_data.append(hbr)
+        hbo_names.append(f"{sd_pair} hbo")
+        hbr_names.append(f"{sd_pair} hbr")
+        
+        # Copy location info from 760nm channel
+        hbo_locs.append(raw_od.info['chs'][idx_760]['loc'].copy())
+        hbr_locs.append(raw_od.info['chs'][idx_760]['loc'].copy())
+    
+    # Create output Raw object
+    all_data = np.vstack(hbo_data + hbr_data)
+    all_names = hbo_names + hbr_names
+    all_types = ['hbo'] * len(hbo_names) + ['hbr'] * len(hbr_names)
+    all_locs = hbo_locs + hbr_locs
+    
+    # Create info
+    info = mne.create_info(
+        ch_names=all_names,
+        sfreq=raw_od.info['sfreq'],
+        ch_types=all_types,
+    )
+    
+    # Copy location info
+    for i, loc in enumerate(all_locs):
+        info['chs'][i]['loc'] = loc
+    
+    # Create Raw object
+    raw_haemo = mne.io.RawArray(all_data, info)
+    
+    # Copy annotations
+    raw_haemo.set_annotations(raw_od.annotations)
+    
+    logger.info(
+        f"Custom Beer-Lambert: {len(hbo_names)} HbO + {len(hbr_names)} HbR channels"
+    )
+    
     return raw_haemo
 
 

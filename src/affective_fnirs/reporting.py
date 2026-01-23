@@ -687,7 +687,74 @@ def generate_validation_report_html(
                 """
                 report.add_html(tfr_maps_html, title="1.0.3 Time-Frequency Maps")
     
-    # 1.0.3.1: Contrast Analysis (Detecting Lateralization Effects)
+    # 1.0.3.1: Clustered Time-Frequency Maps (ROI)
+    if "eeg_tfr_maps_roi" in figures and figures["eeg_tfr_maps_roi"] is not None:
+        import base64
+        from pathlib import Path
+        
+        tfr_maps_roi_value = figures["eeg_tfr_maps_roi"]
+        if isinstance(tfr_maps_roi_value, (str, Path)):
+            tfr_maps_roi_path = Path(tfr_maps_roi_value)
+            
+            if tfr_maps_roi_path.exists():
+                with open(tfr_maps_roi_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                tfr_maps_roi_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.3.1 Clustered Time-Frequency Maps (ROI Analysis)</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        <strong>Region of Interest (ROI) Averaged TFR</strong>:
+                        <br><br>
+                        Averaged power changes across clustered electrodes to handle subject variability and improve signal-to-noise ratio.
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>Left Cluster:</strong> FC1, FC5, C3, CP1, CP5 (Left Sensorimotor Area)</li>
+                            <li><strong>Right Cluster:</strong> FC2, FC6, C4, CP2, CP6 (Right Sensorimotor Area)</li>
+                        </ul>
+                        <br>
+                        Shows robust motor patterns averaged across the entire motor cortex region.
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="Clustered Time-Frequency Maps">
+                </div>
+                """
+                report.add_html(tfr_maps_roi_html, title="1.0.3.1 Clustered TFR Maps (ROI)")
+    
+                # 1.0.3.2: ERP Analysis
+    if "eeg_erp_analysis" in figures and figures["eeg_erp_analysis"] is not None:
+        import base64
+        from pathlib import Path
+        
+        erp_analysis_value = figures["eeg_erp_analysis"]
+        if isinstance(erp_analysis_value, (str, Path)):
+            erp_analysis_path = Path(erp_analysis_value)
+            
+            if erp_analysis_path.exists():
+                with open(erp_analysis_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                erp_analysis_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.3.2 ERP Analysis (Evoked Potentials)</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        <strong>Event-Related Potentials</strong> showing averaged brain response to motor tasks comparison.
+                        <br><br>
+                        <strong>Interpretation:</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>Comparison:</strong> LEFT hand (Blue) vs RIGHT hand (Red) vs NOTHING (Green/Dashed)</li>
+                            <li><strong>Channels:</strong> C3 (Left Motor), C4 (Right Motor), and ROI averages</li>
+                            <li><strong>Differences:</strong> Divergence between traces indicates differential processing of conditions</li>
+                        </ul>
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="ERP Analysis">
+                </div>
+                """
+                report.add_html(erp_analysis_html, title="1.0.3.2 ERP Analysis")
+
+    # 1.0.3.3: Contrast Analysis (Detecting Lateralization Effects)
     if "eeg_contrast_analysis" in figures and figures["eeg_contrast_analysis"] is not None:
         import base64
         from pathlib import Path
@@ -710,7 +777,7 @@ def generate_validation_report_html(
                 
                 contrast_analysis_html = f"""
                 <div style="page-break-inside: avoid; margin: 20px 0;">
-                    <h3>1.0.3.1 Contrast Analysis: Detecting Lateralization Effects</h3>
+                    <h3>1.0.3.3 Contrast Analysis: Detecting Lateralization Effects</h3>
                     <p style="margin: 10px 0; color: #555; font-size: 14px;">
                         <strong>Three contrast strategies</strong> to isolate motor lateralization effects:
                         <br><br>
@@ -741,7 +808,7 @@ def generate_validation_report_html(
                 </div>
                 """
                 logger.info(f"DEBUG: Adding contrast analysis HTML to report")
-                report.add_html(contrast_analysis_html, title="1.0.3.1 Contrast Analysis")
+                report.add_html(contrast_analysis_html, title="1.0.3.3 Contrast Analysis")
                 logger.info(f"DEBUG: Contrast analysis HTML added successfully")
             else:
                 logger.warning(f"DEBUG: Contrast analysis path does not exist: {contrast_analysis_path}")
@@ -750,6 +817,48 @@ def generate_validation_report_html(
     else:
         logger.warning(f"DEBUG: eeg_contrast_analysis not in figures or is None")
         logger.warning(f"DEBUG: figures keys = {list(figures.keys())}")
+    
+    # 1.0.3.2: CSP Analysis (LEFT vs RIGHT discrimination)
+    if "eeg_csp_analysis" in figures and figures["eeg_csp_analysis"] is not None:
+        import base64
+        from pathlib import Path
+        
+        csp_analysis_value = figures["eeg_csp_analysis"]
+        if isinstance(csp_analysis_value, (str, Path)):
+            csp_analysis_path = Path(csp_analysis_value)
+            
+            if csp_analysis_path.exists():
+                with open(csp_analysis_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                csp_analysis_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.3.4 Common Spatial Patterns (CSP): LEFT vs RIGHT Discrimination</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        <strong>CSP</strong> is a supervised spatial filtering technique that maximizes variance for one class 
+                        while minimizing it for the other. For motor tasks, CSP extracts spatial filters that capture 
+                        lateralized motor cortex activity.
+                        <br><br>
+                        <strong>Interpretation:</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>Row 1 (Topoplots):</strong> Spatial patterns showing discriminative topography. 
+                                CSP0, CSP2, CSP4 maximize RIGHT hand variance; CSP1, CSP3, CSP5 maximize LEFT hand variance.</li>
+                            <li><strong>Row 2 Left (Scatter):</strong> Feature space showing class separability. 
+                                Good discrimination = clear separation between blue (LEFT) and red (RIGHT) clusters.</li>
+                            <li><strong>Row 2 Right (Metrics):</strong> Cross-validation accuracy. 
+                                >70% suggests meaningful lateralization; ~50% = chance level (no discrimination).</li>
+                            <li><strong>Row 3 (Time courses):</strong> CSP component activity over time. 
+                                Different amplitude patterns between classes indicate discriminative activity.</li>
+                        </ul>
+                        <br>
+                        <strong>Reference:</strong> Blankertz et al. (2008). Optimizing Spatial Filters for Robust EEG Single-Trial Analysis.
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="CSP Analysis">
+                </div>
+                """
+                report.add_html(csp_analysis_html, title="1.0.3.4 CSP Analysis")
     
     # 1.0.4: Contralateral ERD/ERS Timecourse
     if "eeg_contralateral_timecourse" in figures and figures["eeg_contralateral_timecourse"] is not None:
@@ -911,6 +1020,105 @@ def generate_validation_report_html(
             f"Peak: {validation_results.hrf_validation.time_to_peak_sec:.1f}s, "
             f"Amplitude: {validation_results.hrf_validation.plateau_amplitude_um:.2f} μM",
         )
+    
+    # 2.5: HRF by Condition
+    if "fnirs_hrf_by_condition" in figures and figures["fnirs_hrf_by_condition"] is not None:
+        import base64
+        from pathlib import Path
+        
+        hrf_cond_value = figures["fnirs_hrf_by_condition"]
+        if isinstance(hrf_cond_value, (str, Path)):
+            hrf_cond_path = Path(hrf_cond_value)
+            
+            if hrf_cond_path.exists():
+                with open(hrf_cond_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                hrf_cond_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>2.5 Hemodynamic Response by Condition</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        HRF curves separated by motor condition (LEFT, RIGHT, NOTHING) for each hemisphere.
+                        <br><br>
+                        <strong>Expected patterns:</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>HbO (top row):</strong> Increase during motor task (positive deflection)</li>
+                            <li><strong>HbR (bottom row):</strong> Decrease during motor task (negative deflection)</li>
+                            <li><strong>Contralateral effect:</strong> LEFT hand → Right hemisphere activation, RIGHT hand → Left hemisphere activation</li>
+                            <li><strong>NOTHING condition:</strong> Minimal or no hemodynamic response (control)</li>
+                        </ul>
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="HRF by Condition">
+                </div>
+                """
+                report.add_html(hrf_cond_html, title="2.5 HRF by Condition")
+    
+    # 2.6: Block Average (all channels)
+    if "fnirs_block_average" in figures and figures["fnirs_block_average"] is not None:
+        import base64
+        from pathlib import Path
+        
+        block_avg_value = figures["fnirs_block_average"]
+        if isinstance(block_avg_value, (str, Path)):
+            block_avg_path = Path(block_avg_value)
+            
+            if block_avg_path.exists():
+                with open(block_avg_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                block_avg_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>2.6 Block Average - All HbO Channels</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        Grand average HRF across all trials for each fNIRS channel. 
+                        Useful for identifying which channels show task-related hemodynamic responses.
+                        <br><br>
+                        <strong>Interpretation:</strong> Channels with clear positive deflection during task window 
+                        (0 to task duration) indicate successful measurement of motor cortex activation.
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="Block Average">
+                </div>
+                """
+                report.add_html(block_avg_html, title="2.6 Block Average")
+    
+    # 2.7: fNIRS Contrast Analysis
+    if "fnirs_contrast" in figures and figures["fnirs_contrast"] is not None:
+        import base64
+        from pathlib import Path
+        
+        contrast_value = figures["fnirs_contrast"]
+        if isinstance(contrast_value, (str, Path)):
+            contrast_path = Path(contrast_value)
+            
+            if contrast_path.exists():
+                with open(contrast_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                contrast_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>2.7 fNIRS Contrast Analysis</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        Comparison of hemodynamic responses between conditions and hemispheres.
+                        <br><br>
+                        <strong>Plots:</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>Left:</strong> HbO amplitude by condition and hemisphere</li>
+                            <li><strong>Center:</strong> Lateralization Index - positive = right hemisphere dominant, negative = left hemisphere dominant</li>
+                            <li><strong>Right:</strong> Motor vs Rest comparison (sanity check)</li>
+                        </ul>
+                        <br>
+                        <strong>Expected:</strong> LEFT hand → positive lateralization (right hemisphere), RIGHT hand → negative lateralization (left hemisphere)
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="fNIRS Contrast">
+                </div>
+                """
+                report.add_html(contrast_html, title="2.7 fNIRS Contrast Analysis")
 
     # =========================================================================
     # SUPRA-SECTION 3: EEG + fNIRS (MULTIMODAL)

@@ -64,8 +64,8 @@ analysis:
   alpha_band_high_hz: 13.0
   beta_band_low_hz: 13.0
   beta_band_high_hz: 30.0
-  baseline_window_start_sec: -3.0
-  baseline_window_end_sec: -1.0
+  baseline_window_start_sec: -2.0
+  baseline_window_end_sec: 0.0
   task_window_start_sec: 1.0
   task_window_end_sec: 14.0
   beta_rebound_window_start_sec: 15.0
@@ -75,6 +75,8 @@ analysis:
   hrf_peak_window_start_sec: 4.0
   hrf_peak_window_end_sec: 8.0
   dpf: 6.0
+  tfr_view_tmin_sec: 0.0
+  tfr_view_tmax_sec: 5.0
 
 # ICA configuration
 ica:

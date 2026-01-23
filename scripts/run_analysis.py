@@ -184,8 +184,15 @@ def generate_tfr_maps(
         fig, axes = plt.subplots(2, n_cols, figsize=(8*n_cols, 10))
         
         # Time window for display
-        tmin = -1.0
-        tmax = config.trials.task_duration_sec + 2.0
+        if config.analysis.tfr_view_tmin_sec is not None:
+             tmin = config.analysis.tfr_view_tmin_sec
+        else:
+             tmin = -1.0
+             
+        if config.analysis.tfr_view_tmax_sec is not None:
+             tmax = config.analysis.tfr_view_tmax_sec
+        else:
+             tmax = config.trials.task_duration_sec + 2.0
         
         # Color scale: compute adaptive limits based on actual data
         # Collect all TFR data for C3 and C4 to determine appropriate color scale
@@ -359,6 +366,375 @@ def generate_tfr_maps(
         import traceback
         traceback.print_exc()
         return None
+
+
+def generate_clustered_tfr_maps(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate Time-Frequency Maps for averaged electrode clusters (ROIs).
+    
+    ROI Definitions:
+    - Left Motor Cluster: FC1, FC5, C3, CP1, CP5
+    - Right Motor Cluster: FC2, FC6, C4, CP2, CP6
+    
+    Args:
+        epochs: MNE Epochs object with condition information
+        output_path: Directory to save plot
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Path to saved TFR map or None if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # ROI Definitions
+        left_cluster = ['FC1', 'FC5', 'C3', 'CP1', 'CP5']
+        right_cluster = ['FC2', 'FC6', 'C4', 'CP2', 'CP6']
+        
+        # Check conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        has_nothing = any('NOTHING' in cond for cond in conditions)
+        
+        if not (has_left and has_right):
+            logger.warning("Need both LEFT and RIGHT conditions for TFR maps")
+            return None
+            
+        # Validate channels exist
+        available_ch = epochs.ch_names
+        valid_left = [ch for ch in left_cluster if ch in available_ch]
+        valid_right = [ch for ch in right_cluster if ch in available_ch]
+        
+        if not valid_left or not valid_right:
+            logger.warning(f"Missing channels for clusters. Left found: {valid_left}, Right found: {valid_right}")
+            return None
+            
+        logger.info(f"Generating Clustered TFR maps (Left: {len(valid_left)} ch, Right: {len(valid_right)} ch)...")
+        
+        from affective_fnirs.eeg_analysis import compute_tfr
+        
+        # Frequency range: 4-40 Hz
+        freqs = np.arange(4, 41, 1)
+        
+        # Get conditions
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        nothing_cond = [c for c in conditions if 'NOTHING' in c][0] if has_nothing else None
+        
+        # Helper to compute ROI average TFR
+        def compute_roi_tfr(condition, channels):
+            """Compute TFR averaged across ROI channels."""
+            # Make a copy of epochs and pick only ROI channels
+            epochs_roi = epochs[condition].copy().pick_channels(channels)
+            
+            # Compute TFR for all channels in ROI
+            tfr = compute_tfr(
+                epochs_roi,
+                freqs=freqs,
+                n_cycles=freqs / 2.0,
+                baseline=(config.analysis.baseline_window_start_sec,
+                         config.analysis.baseline_window_end_sec),
+                baseline_mode="percent",
+            )
+            
+            # Average across channels: data shape is (n_channels, n_freqs, n_times)
+            # After averaging, we get (1, n_freqs, n_times)
+            avg_data = np.mean(tfr.data, axis=0, keepdims=True)
+            
+            # Create a new AverageTFR with averaged data
+            # Use AverageTFRArray class which allows creating from numpy arrays (MNE 1.9+)
+            import mne
+            new_info = mne.create_info(
+                ch_names=['ROI_AVG'],
+                sfreq=tfr.info['sfreq'],
+                ch_types=['eeg']
+            )
+            
+            # Create new AverageTFRArray (correct API for MNE 1.9)
+            avg_tfr = mne.time_frequency.AverageTFRArray(
+                info=new_info,
+                data=avg_data,
+                times=tfr.times,
+                freqs=tfr.freqs,
+                nave=tfr.nave
+            )
+            
+            return avg_tfr
+
+        # Compute TFRs
+        logger.info("Computing ROI TFRs...")
+        
+        tfr_left_roi_L = compute_roi_tfr(left_cond, valid_left)
+        tfr_left_roi_R = compute_roi_tfr(left_cond, valid_right)
+        
+        tfr_right_roi_L = compute_roi_tfr(right_cond, valid_left)
+        tfr_right_roi_R = compute_roi_tfr(right_cond, valid_right)
+        
+        tfr_nothing_roi_L = None
+        tfr_nothing_roi_R = None
+        
+        if nothing_cond:
+            tfr_nothing_roi_L = compute_roi_tfr(nothing_cond, valid_left)
+            tfr_nothing_roi_R = compute_roi_tfr(nothing_cond, valid_right)
+
+        # Plotting
+        n_cols = 3 if tfr_nothing_roi_L else 2
+        fig, axes = plt.subplots(2, n_cols, figsize=(8*n_cols, 10))
+        
+        # Time window
+        if config.analysis.tfr_view_tmin_sec is not None:
+             tmin = config.analysis.tfr_view_tmin_sec
+        else:
+             tmin = -1.0
+             
+        if config.analysis.tfr_view_tmax_sec is not None:
+             tmax = config.analysis.tfr_view_tmax_sec
+        else:
+             tmax = config.trials.task_duration_sec + 2.0
+             
+        # Determine color scale
+        all_data = [
+            tfr_left_roi_L.data, tfr_left_roi_R.data,
+            tfr_right_roi_L.data, tfr_right_roi_R.data
+        ]
+        if tfr_nothing_roi_L:
+            all_data.extend([tfr_nothing_roi_L.data, tfr_nothing_roi_R.data])
+            
+        all_data_concat = np.concatenate([d.flatten() for d in all_data])
+        vmin = np.percentile(all_data_concat, 5)
+        vmax = np.percentile(all_data_concat, 95)
+        vmax_abs = max(abs(vmin), abs(vmax))
+        vmin, vmax = -vmax_abs, vmax_abs
+        vmin = max(vmin, -30) # Cap
+        vmax = min(vmax, 30)
+        
+        logger.info(f"ROI TFR color scale: {vmin:.1f}% to {vmax:.1f}%")
+        
+        # Helper for plotting
+        def plot_ax(ax, tfr_obj, title):
+            im = ax.imshow(
+                tfr_obj.data[0, :, :], # 0 index because we averaged to 1 channel
+                aspect='auto', origin='lower',
+                extent=[tfr_obj.times[0], tfr_obj.times[-1], freqs[0], freqs[-1]],
+                cmap='RdBu_r', vmin=vmin, vmax=vmax
+            )
+            ax.axvline(0, color='black', linestyle='--', linewidth=2)
+            ax.axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
+            ax.set_xlim(tmin, tmax)
+            ax.set_xlabel('Time (s)', fontsize=12, fontweight='bold')
+            ax.set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+            ax.set_title(title, fontsize=14, fontweight='bold')
+            return im
+
+        # Row 1: Left Cluster
+        plot_ax(axes[0, 0], tfr_left_roi_L, 'Left Cluster - LEFT Hand')
+        plot_ax(axes[0, 1], tfr_right_roi_L, 'Left Cluster - RIGHT Hand (Contralateral)')
+        if tfr_nothing_roi_L:
+            plot_ax(axes[0, 2], tfr_nothing_roi_L, 'Left Cluster - NOTHING')
+            
+        # Row 2: Right Cluster
+        plot_ax(axes[1, 0], tfr_left_roi_R, 'Right Cluster - LEFT Hand (Contralateral)')
+        im = plot_ax(axes[1, 1], tfr_right_roi_R, 'Right Cluster - RIGHT Hand')
+        if tfr_nothing_roi_R:
+             plot_ax(axes[1, 2], tfr_nothing_roi_R, 'Right Cluster - NOTHING')
+             
+        # Colorbar
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+        cbar = fig.colorbar(im, cax=cbar_ax)
+        cbar.set_label('Power change (%)', fontsize=14, fontweight='bold')
+        
+        fig.suptitle('Time-Frequency Maps: Averaged Motor Clusters (ROI)', 
+                    fontsize=18, fontweight='bold', y=0.98)
+        fig.tight_layout(rect=[0, 0, 0.9, 0.96])
+        
+        # Save
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-tfr_maps_roi.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"Clustered TFR Maps saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to generate Clustered TFR maps: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+
+
+
+def generate_erp_analysis(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate ERP analysis plots (Evoked potentials) with SEM shading.
+    
+    Compares averaged responses (Evoked) across conditions (LEFT, RIGHT, NOTHING)
+    for key channels comparison, including standard error of the mean (SEM).
+    
+    Args:
+        epochs: MNE Epochs object with condition information
+        output_path: Directory to save plots
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Path to saved ERP plot or None if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from scipy.stats import sem
+        
+        # ROI Definitions
+        left_cluster = ['FC1', 'FC5', 'C3', 'CP1', 'CP5']
+        right_cluster = ['FC2', 'FC6', 'C4', 'CP2', 'CP6']
+        
+        # Check conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        
+        if not (has_left and has_right):
+            logger.warning("Need both LEFT and RIGHT conditions for ERP analysis")
+            return None
+            
+        logger.info("Generating ERP Analysis plots with SEM...")
+        
+        # Get conditions
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        nothing_cond = None
+        if any('NOTHING' in cond for cond in conditions):
+             nothing_cond = [c for c in conditions if 'NOTHING' in c][0]
+             
+        # Prepare plot
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+        
+        # Time window for plot (Requested: -1 to +3 seconds)
+        tmin_plot = -1.0
+        tmax_plot = 3.0
+        
+        # Helper to compute stats (Mean, SEM)
+        def get_condition_stats(condition_name, channels, roi_mode=False):
+            if condition_name is None:
+                return None, None, None
+            
+            # Get data: (n_trials, n_channels, n_times)
+            data = epochs[condition_name].get_data(picks=channels)
+            
+            if roi_mode:
+                # Average across channels first for each trial -> (n_trials, n_times)
+                data = data.mean(axis=1)
+            else:
+                # Single channel -> (n_trials, n_times)
+                data = data[:, 0, :]
+                
+            # Compute stats across trials (axis 0)
+            mean_data = data.mean(axis=0) * 1e6 # Convert to uV
+            sem_data = sem(data, axis=0) * 1e6   # Convert to uV
+            
+            return mean_data, sem_data, epochs.times
+            
+        # Helper to plot comparison
+        def plot_erp_comparison(ax, channel_indices, title, roi_mode=False):
+            # Get channel names for picking
+            if roi_mode:
+                # channel_indices actually contains indices, let's map back to names if needed
+                # But get_data accepts indices too
+                picks = channel_indices
+            else:
+                picks = [channel_indices[0]]
+            
+            # LEFT
+            mean_L, sem_L, times = get_condition_stats(left_cond, picks, roi_mode)
+            ax.plot(times, mean_L, 'b-', linewidth=2, label='LEFT Hand')
+            ax.fill_between(times, mean_L - sem_L, mean_L + sem_L, color='blue', alpha=0.15)
+            
+            # RIGHT
+            mean_R, sem_R, _ = get_condition_stats(right_cond, picks, roi_mode)
+            ax.plot(times, mean_R, 'r-', linewidth=2, label='RIGHT Hand')
+            ax.fill_between(times, mean_R - sem_R, mean_R + sem_R, color='red', alpha=0.15)
+            
+            # NOTHING
+            if nothing_cond:
+                mean_N, sem_N, _ = get_condition_stats(nothing_cond, picks, roi_mode)
+                ax.plot(times, mean_N, 'g--', linewidth=1.5, alpha=0.7, label='NOTHING')
+                ax.fill_between(times, mean_N - sem_N, mean_N + sem_N, color='green', alpha=0.1)
+                
+            # Styling
+            ax.axvline(0, color='black', linestyle='--', linewidth=1.5)
+            # Only show end line if it's within plot range
+            if config.trials.task_duration_sec < tmax_plot:
+                ax.axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=1.5, alpha=0.5)
+                
+            ax.axhline(0, color='gray', linestyle=':', linewidth=1)
+            ax.set_xlim(tmin_plot, tmax_plot)
+            ax.set_xlabel('Time (s)')
+            ax.set_ylabel('Amplitude (µV)')
+            ax.set_title(title, fontweight='bold')
+            ax.legend(loc='upper right', fontsize=9)
+            ax.grid(True, alpha=0.3)
+            
+        # Get channel indices
+        ch_names = epochs.ch_names
+        
+        # 1. C3
+        if 'C3' in ch_names:
+            plot_erp_comparison(axes[0, 0], [ch_names.index('C3')], 'C3 ERP (Left Motor)')
+            
+        # 2. C4
+        if 'C4' in ch_names:
+            plot_erp_comparison(axes[0, 1], [ch_names.index('C4')], 'C4 ERP (Right Motor)')
+            
+        # 3. Left ROI Average
+        left_indices = [ch_names.index(ch) for ch in left_cluster if ch in ch_names]
+        if left_indices:
+             plot_erp_comparison(axes[1, 0], left_indices, 'Left Cluster ROI Average', roi_mode=True)
+             
+        # 4. Right ROI Average
+        right_indices = [ch_names.index(ch) for ch in right_cluster if ch in ch_names]
+        if right_indices:
+             plot_erp_comparison(axes[1, 1], right_indices, 'Right Cluster ROI Average', roi_mode=True)
+             
+        fig.suptitle(f'Event-Related Potentials (ERP): Mean ± SEM\nSubject {config.subject.id}', 
+                    fontsize=16, fontweight='bold', y=0.98)
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        # Save
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-erp_analysis.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"ERP Analysis saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to generate ERP analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 
 
 def generate_contrast_analysis(
@@ -658,6 +1034,826 @@ def generate_contrast_analysis(
         import traceback
         traceback.print_exc()
         return None, None
+
+
+def generate_csp_analysis(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> tuple[Optional[Path], dict]:
+    """
+    Apply Common Spatial Patterns (CSP) to discriminate LEFT vs RIGHT hand movement.
+    
+    CSP is a supervised spatial filtering technique that maximizes variance for one
+    class while minimizing it for the other. For motor imagery/execution tasks,
+    CSP extracts spatial filters that capture lateralized motor cortex activity.
+    
+    Scientific rationale:
+        - CSP finds spatial filters W such that Var(W·X_class1) is maximized
+          while Var(W·X_class2) is minimized
+        - For LEFT vs RIGHT hand movement, CSP should find filters emphasizing
+          contralateral motor cortex (C3 for RIGHT, C4 for LEFT)
+        - The resulting spatial patterns reveal the topography of discriminative activity
+    
+    Reference:
+        Blankertz et al. (2008). Optimizing Spatial Filters for Robust EEG 
+        Single-Trial Analysis. IEEE Signal Processing Magazine.
+    
+    Args:
+        epochs: MNE Epochs with LEFT and RIGHT conditions
+        output_path: Directory to save outputs
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Tuple of (figure_path, results_dict) where results_dict contains:
+            - accuracy: Cross-validation accuracy
+            - csp_patterns: Spatial patterns matrix
+            - feature_scatter: Feature values for visualization
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from mne.decoding import CSP
+        from sklearn.model_selection import cross_val_score, StratifiedKFold
+        from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+        from sklearn.pipeline import Pipeline
+        
+        # Check conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        
+        if not (has_left and has_right):
+            logger.warning("Need both LEFT and RIGHT conditions for CSP analysis")
+            return None, {}
+        
+        logger.info("Running CSP analysis for LEFT vs RIGHT discrimination...")
+        
+        # Get condition names
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        
+        # Get epochs for each condition
+        epochs_left = epochs[left_cond]
+        epochs_right = epochs[right_cond]
+        
+        n_left = len(epochs_left)
+        n_right = len(epochs_right)
+        logger.info(f"LEFT trials: {n_left}, RIGHT trials: {n_right}")
+        
+        # Combine epochs and create labels
+        # Label: 0 = LEFT, 1 = RIGHT
+        epochs_combined = mne.concatenate_epochs([epochs_left, epochs_right])
+        labels = np.array([0] * n_left + [1] * n_right)
+        
+        # Get data (trials x channels x time)
+        data = epochs_combined.get_data()
+        logger.info(f"Data shape: {data.shape} (trials x channels x time)")
+        
+        # =====================================================================
+        # CSP Analysis
+        # =====================================================================
+        # Use 6 components (3 per class) with alternate ordering
+        # Add regularization to handle ill-conditioned covariance matrices
+        n_components = min(6, min(n_left, n_right) * 2 - 2)  # Limit components based on trials
+        n_components = max(2, n_components)  # At least 2 components
+        
+        csp = CSP(
+            n_components=n_components,
+            reg='ledoit_wolf',  # Regularization for small sample sizes
+            log=True,  # Log-transform features (log-variance)
+            norm_trace=False,
+            component_order='alternate',  # Alternate between classes
+        )
+        
+        # Fit CSP on all data first for visualization
+        csp.fit(data, labels)
+        
+        # Get spatial patterns for topographic visualization
+        csp_patterns = csp.patterns_
+        logger.info(f"CSP patterns shape: {csp_patterns.shape}")
+        
+        # Transform data to get features
+        csp_features = csp.transform(data)
+        logger.info(f"CSP features shape: {csp_features.shape}")
+        
+        # =====================================================================
+        # Cross-validation for accuracy estimation
+        # =====================================================================
+        # Use stratified k-fold (k=min(5, min_class_size))
+        min_class_size = min(n_left, n_right)
+        n_splits = min(5, min_class_size)
+        
+        if n_splits >= 2:
+            cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=config.random_seed)
+            
+            # Pipeline: CSP + LDA
+            clf = Pipeline([
+                ('csp', CSP(n_components=n_components, reg='ledoit_wolf', log=True, 
+                           norm_trace=False, component_order='alternate')),
+                ('lda', LinearDiscriminantAnalysis())
+            ])
+            
+            # Cross-validation
+            scores = cross_val_score(clf, data, labels, cv=cv, scoring='accuracy')
+            mean_accuracy = scores.mean()
+            std_accuracy = scores.std()
+            logger.info(f"CSP+LDA CV Accuracy: {mean_accuracy:.1%} ± {std_accuracy:.1%}")
+        else:
+            mean_accuracy = np.nan
+            std_accuracy = np.nan
+            logger.warning("Not enough trials for cross-validation")
+        
+        # =====================================================================
+        # Create visualization figure
+        # =====================================================================
+        fig = plt.figure(figsize=(16, 12))
+        
+        # Layout: 3 rows
+        # Row 1: CSP spatial patterns (topoplots)
+        # Row 2: Feature scatter plot + accuracy
+        # Row 3: CSP component time courses
+        
+        # Row 1: Topoplots of CSP patterns
+        n_patterns_to_show = min(6, n_components)
+        for idx in range(n_patterns_to_show):
+            ax = fig.add_subplot(3, n_patterns_to_show, idx + 1)
+            
+            # Get pattern for this component
+            pattern = csp_patterns[idx, :]
+            
+            # Create info object for topoplot
+            info = epochs_combined.info.copy()
+            
+            # Plot topomap
+            mne.viz.plot_topomap(
+                pattern,
+                info,
+                axes=ax,
+                show=False,
+                contours=0,
+            )
+            
+            # Label: odd indices favor LEFT (class 0), even favor RIGHT (class 1)
+            if idx % 2 == 0:
+                class_label = "RIGHT"
+            else:
+                class_label = "LEFT"
+            ax.set_title(f"CSP{idx}\n({class_label})", fontsize=11, fontweight='bold')
+        
+        # Row 2: Feature scatter plot
+        ax_scatter = fig.add_subplot(3, 2, 3)
+        
+        # Plot first two CSP features
+        left_mask = labels == 0
+        right_mask = labels == 1
+        
+        ax_scatter.scatter(
+            csp_features[left_mask, 0], 
+            csp_features[left_mask, 1],
+            c='blue', s=100, alpha=0.7, label='LEFT hand', edgecolors='black'
+        )
+        ax_scatter.scatter(
+            csp_features[right_mask, 0], 
+            csp_features[right_mask, 1],
+            c='red', s=100, alpha=0.7, label='RIGHT hand', edgecolors='black'
+        )
+        ax_scatter.set_xlabel('CSP Feature 0 (log-variance)', fontsize=12, fontweight='bold')
+        ax_scatter.set_ylabel('CSP Feature 1 (log-variance)', fontsize=12, fontweight='bold')
+        ax_scatter.set_title('CSP Feature Space: LEFT vs RIGHT', fontsize=13, fontweight='bold')
+        ax_scatter.legend(loc='best', fontsize=10)
+        ax_scatter.grid(True, alpha=0.3)
+        
+        # Row 2 right: Accuracy and metrics
+        ax_metrics = fig.add_subplot(3, 2, 4)
+        ax_metrics.axis('off')
+        
+        metrics_text = f"""
+CSP Analysis Results
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Classification: LEFT vs RIGHT hand
+
+Trials:
+  • LEFT:  {n_left} trials
+  • RIGHT: {n_right} trials
+  • Total: {n_left + n_right} trials
+
+CSP Configuration:
+  • Components: {n_components}
+  • Ordering: Alternate (class-balanced)
+  • Features: Log-variance
+
+Cross-Validation ({n_splits}-fold):
+  • Accuracy: {mean_accuracy:.1%} ± {std_accuracy:.1%}
+  • Chance level: 50%
+
+Interpretation:
+  • CSP0, CSP2, CSP4: Maximize RIGHT variance
+  • CSP1, CSP3, CSP5: Maximize LEFT variance
+  • Spatial patterns show discriminative topography
+"""
+        ax_metrics.text(0.1, 0.95, metrics_text, transform=ax_metrics.transAxes,
+                       fontsize=11, verticalalignment='top', fontfamily='monospace',
+                       bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+        
+        # Row 3: CSP component time courses (averaged)
+        # Transform epochs to CSP space
+        csp_space = CSP(n_components=n_components, reg='ledoit_wolf', log=None,
+                       norm_trace=False, component_order='alternate',
+                       transform_into='csp_space')
+        csp_space.fit(data, labels)
+        data_csp = csp_space.transform(data)  # (trials, components, time)
+        
+        times = epochs_combined.times
+        
+        # Plot first 4 components
+        for comp_idx in range(min(4, n_components)):
+            ax = fig.add_subplot(3, 4, 9 + comp_idx)
+            
+            # Average across trials for each class
+            left_avg = data_csp[left_mask, comp_idx, :].mean(axis=0)
+            right_avg = data_csp[right_mask, comp_idx, :].mean(axis=0)
+            left_std = data_csp[left_mask, comp_idx, :].std(axis=0)
+            right_std = data_csp[right_mask, comp_idx, :].std(axis=0)
+            
+            ax.plot(times, left_avg, 'b-', linewidth=2, label='LEFT')
+            ax.fill_between(times, left_avg - left_std, left_avg + left_std, 
+                           color='blue', alpha=0.2)
+            ax.plot(times, right_avg, 'r-', linewidth=2, label='RIGHT')
+            ax.fill_between(times, right_avg - right_std, right_avg + right_std,
+                           color='red', alpha=0.2)
+            
+            ax.axvline(0, color='black', linestyle='--', linewidth=1.5)
+            ax.axvline(config.trials.task_duration_sec, color='black', 
+                      linestyle='--', linewidth=1.5, alpha=0.5)
+            ax.set_xlabel('Time (s)', fontsize=10)
+            ax.set_ylabel('Amplitude', fontsize=10)
+            ax.set_title(f'CSP{comp_idx} Time Course', fontsize=11, fontweight='bold')
+            if comp_idx == 0:
+                ax.legend(loc='best', fontsize=9)
+            ax.grid(True, alpha=0.3)
+        
+        fig.suptitle(f'Common Spatial Patterns (CSP): LEFT vs RIGHT Hand Discrimination\n'
+                    f'Subject {config.subject.id} | Session {config.subject.session}',
+                    fontsize=16, fontweight='bold', y=0.995)
+        fig.tight_layout(rect=[0, 0, 1, 0.97])
+        
+        # Save figure
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-csp_analysis.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"CSP Analysis saved to: {filepath}")
+        
+        # Prepare results dictionary
+        results = {
+            'accuracy_mean': float(mean_accuracy) if not np.isnan(mean_accuracy) else None,
+            'accuracy_std': float(std_accuracy) if not np.isnan(std_accuracy) else None,
+            'n_left_trials': n_left,
+            'n_right_trials': n_right,
+            'n_components': n_components,
+            'cv_folds': n_splits,
+        }
+        
+        return filepath, results
+        
+    except ImportError as e:
+        logger.error(f"Missing dependency for CSP analysis: {e}")
+        return None, {}
+    except Exception as e:
+        logger.error(f"Failed to generate CSP analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, {}
+
+
+# =============================================================================
+# fNIRS ANALYSIS FUNCTIONS
+# =============================================================================
+
+def generate_fnirs_hrf_by_condition(
+    fnirs_epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate HRF curves separated by condition (LEFT, RIGHT, NOTHING).
+    
+    Shows the hemodynamic response for each motor condition, allowing comparison
+    of HbO/HbR responses between left and right hand movements.
+    
+    Scientific rationale:
+        - HRF should show task-related increase in HbO and decrease in HbR
+        - Contralateral effect: LEFT hand → right hemisphere activation (and vice versa)
+        - NOTHING condition serves as control (minimal HRF expected)
+    
+    Args:
+        fnirs_epochs: MNE Epochs with fNIRS data (HbO/HbR channels)
+        output_path: Directory to save plot
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Path to saved figure or None if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        conditions = list(fnirs_epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        has_nothing = any('NOTHING' in cond for cond in conditions)
+        
+        logger.info(f"Generating fNIRS HRF by condition...")
+        logger.info(f"Conditions: LEFT={has_left}, RIGHT={has_right}, NOTHING={has_nothing}")
+        
+        # Get HbO channels (motor cortex regions)
+        hbo_channels = [ch for ch in fnirs_epochs.ch_names if 'hbo' in ch.lower()]
+        hbr_channels = [ch for ch in fnirs_epochs.ch_names if 'hbr' in ch.lower()]
+        
+        if not hbo_channels:
+            logger.warning("No HbO channels found in fNIRS epochs")
+            return None
+        
+        logger.info(f"Found {len(hbo_channels)} HbO channels, {len(hbr_channels)} HbR channels")
+        
+        # Define left and right hemisphere channels based on naming
+        left_hbo = [ch for ch in hbo_channels if any(x in ch for x in ['S1', 'S3', 'S5', 'S7'])]
+        right_hbo = [ch for ch in hbo_channels if any(x in ch for x in ['S2', 'S4', 'S6', 'S8'])]
+        
+        # If naming doesn't work, split by index
+        if not left_hbo or not right_hbo:
+            mid = len(hbo_channels) // 2
+            left_hbo = hbo_channels[:mid] if mid > 0 else hbo_channels[:1]
+            right_hbo = hbo_channels[mid:] if mid > 0 else hbo_channels[1:2]
+        
+        logger.info(f"Left hemisphere HbO: {len(left_hbo)} channels")
+        logger.info(f"Right hemisphere HbO: {len(right_hbo)} channels")
+        
+        times = fnirs_epochs.times
+        
+        # Create figure
+        n_cols = 2  # Left hemisphere, Right hemisphere
+        n_rows = 2  # HbO, HbR
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(14, 10))
+        
+        colors = {'LEFT': 'blue', 'RIGHT': 'red', 'NOTHING': 'green'}
+        
+        # Get condition names
+        left_cond = [c for c in conditions if 'LEFT' in c][0] if has_left else None
+        right_cond = [c for c in conditions if 'RIGHT' in c][0] if has_right else None
+        nothing_cond = [c for c in conditions if 'NOTHING' in c][0] if has_nothing else None
+        
+        # Plot HbO - Left Hemisphere
+        ax = axes[0, 0]
+        for cond_name, cond_key, color in [('LEFT', left_cond, 'blue'), 
+                                            ('RIGHT', right_cond, 'red'),
+                                            ('NOTHING', nothing_cond, 'green')]:
+            if cond_key is None:
+                continue
+            epochs_cond = fnirs_epochs[cond_key]
+            if len(left_hbo) > 0:
+                # Average across left hemisphere HbO channels
+                data = epochs_cond.get_data(picks=left_hbo)  # (trials, channels, time)
+                mean_hrf = data.mean(axis=(0, 1))  # Average across trials and channels
+                std_hrf = data.mean(axis=1).std(axis=0)  # Std across trials
+                
+                ax.plot(times, mean_hrf * 1e6, color=color, linewidth=2, label=cond_name)
+                ax.fill_between(times, (mean_hrf - std_hrf) * 1e6, (mean_hrf + std_hrf) * 1e6,
+                               color=color, alpha=0.2)
+        
+        ax.axvline(0, color='black', linestyle='--', linewidth=1.5, label='Onset')
+        ax.axvline(config.trials.task_duration_sec, color='gray', linestyle='--', linewidth=1.5)
+        ax.axhline(0, color='gray', linestyle='-', linewidth=0.5, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=11)
+        ax.set_ylabel('ΔHbO (μM)', fontsize=11)
+        ax.set_title('Left Hemisphere - HbO\n(Contralateral to RIGHT hand)', fontsize=12, fontweight='bold')
+        ax.legend(loc='best', fontsize=9)
+        ax.grid(True, alpha=0.3)
+        
+        # Plot HbO - Right Hemisphere
+        ax = axes[0, 1]
+        for cond_name, cond_key, color in [('LEFT', left_cond, 'blue'), 
+                                            ('RIGHT', right_cond, 'red'),
+                                            ('NOTHING', nothing_cond, 'green')]:
+            if cond_key is None:
+                continue
+            epochs_cond = fnirs_epochs[cond_key]
+            if len(right_hbo) > 0:
+                data = epochs_cond.get_data(picks=right_hbo)
+                mean_hrf = data.mean(axis=(0, 1))
+                std_hrf = data.mean(axis=1).std(axis=0)
+                
+                ax.plot(times, mean_hrf * 1e6, color=color, linewidth=2, label=cond_name)
+                ax.fill_between(times, (mean_hrf - std_hrf) * 1e6, (mean_hrf + std_hrf) * 1e6,
+                               color=color, alpha=0.2)
+        
+        ax.axvline(0, color='black', linestyle='--', linewidth=1.5)
+        ax.axvline(config.trials.task_duration_sec, color='gray', linestyle='--', linewidth=1.5)
+        ax.axhline(0, color='gray', linestyle='-', linewidth=0.5, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=11)
+        ax.set_ylabel('ΔHbO (μM)', fontsize=11)
+        ax.set_title('Right Hemisphere - HbO\n(Contralateral to LEFT hand)', fontsize=12, fontweight='bold')
+        ax.legend(loc='best', fontsize=9)
+        ax.grid(True, alpha=0.3)
+        
+        # Plot HbR - Left Hemisphere
+        ax = axes[1, 0]
+        left_hbr = [ch.replace('hbo', 'hbr') for ch in left_hbo if ch.replace('hbo', 'hbr') in fnirs_epochs.ch_names]
+        if left_hbr:
+            for cond_name, cond_key, color in [('LEFT', left_cond, 'blue'), 
+                                                ('RIGHT', right_cond, 'red'),
+                                                ('NOTHING', nothing_cond, 'green')]:
+                if cond_key is None:
+                    continue
+                epochs_cond = fnirs_epochs[cond_key]
+                data = epochs_cond.get_data(picks=left_hbr)
+                mean_hrf = data.mean(axis=(0, 1))
+                std_hrf = data.mean(axis=1).std(axis=0)
+                
+                ax.plot(times, mean_hrf * 1e6, color=color, linewidth=2, label=cond_name)
+                ax.fill_between(times, (mean_hrf - std_hrf) * 1e6, (mean_hrf + std_hrf) * 1e6,
+                               color=color, alpha=0.2)
+        
+        ax.axvline(0, color='black', linestyle='--', linewidth=1.5)
+        ax.axvline(config.trials.task_duration_sec, color='gray', linestyle='--', linewidth=1.5)
+        ax.axhline(0, color='gray', linestyle='-', linewidth=0.5, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=11)
+        ax.set_ylabel('ΔHbR (μM)', fontsize=11)
+        ax.set_title('Left Hemisphere - HbR\n(Expected: Decrease during activation)', fontsize=12, fontweight='bold')
+        ax.legend(loc='best', fontsize=9)
+        ax.grid(True, alpha=0.3)
+        
+        # Plot HbR - Right Hemisphere
+        ax = axes[1, 1]
+        right_hbr = [ch.replace('hbo', 'hbr') for ch in right_hbo if ch.replace('hbo', 'hbr') in fnirs_epochs.ch_names]
+        if right_hbr:
+            for cond_name, cond_key, color in [('LEFT', left_cond, 'blue'), 
+                                                ('RIGHT', right_cond, 'red'),
+                                                ('NOTHING', nothing_cond, 'green')]:
+                if cond_key is None:
+                    continue
+                epochs_cond = fnirs_epochs[cond_key]
+                data = epochs_cond.get_data(picks=right_hbr)
+                mean_hrf = data.mean(axis=(0, 1))
+                std_hrf = data.mean(axis=1).std(axis=0)
+                
+                ax.plot(times, mean_hrf * 1e6, color=color, linewidth=2, label=cond_name)
+                ax.fill_between(times, (mean_hrf - std_hrf) * 1e6, (mean_hrf + std_hrf) * 1e6,
+                               color=color, alpha=0.2)
+        
+        ax.axvline(0, color='black', linestyle='--', linewidth=1.5)
+        ax.axvline(config.trials.task_duration_sec, color='gray', linestyle='--', linewidth=1.5)
+        ax.axhline(0, color='gray', linestyle='-', linewidth=0.5, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=11)
+        ax.set_ylabel('ΔHbR (μM)', fontsize=11)
+        ax.set_title('Right Hemisphere - HbR\n(Expected: Decrease during activation)', fontsize=12, fontweight='bold')
+        ax.legend(loc='best', fontsize=9)
+        ax.grid(True, alpha=0.3)
+        
+        fig.suptitle(f'fNIRS Hemodynamic Response by Condition\n'
+                    f'Subject {config.subject.id} | Task Duration: {config.trials.task_duration_sec}s',
+                    fontsize=14, fontweight='bold', y=0.995)
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        # Save figure
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-fnirs_hrf_by_condition.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"fNIRS HRF by condition saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to generate fNIRS HRF by condition: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def generate_fnirs_block_average(
+    fnirs_epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate block-averaged HRF for all fNIRS channels.
+    
+    Shows the grand average HRF across all trials and conditions for each channel,
+    useful for identifying which channels show task-related hemodynamic responses.
+    
+    Args:
+        fnirs_epochs: MNE Epochs with fNIRS data
+        output_path: Directory to save plot
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Path to saved figure or None if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info("Generating fNIRS block average plot...")
+        
+        # Get HbO channels only for cleaner visualization
+        hbo_channels = [ch for ch in fnirs_epochs.ch_names if 'hbo' in ch.lower()]
+        
+        if not hbo_channels:
+            logger.warning("No HbO channels found")
+            return None
+        
+        n_channels = len(hbo_channels)
+        times = fnirs_epochs.times
+        
+        # Calculate grid size
+        n_cols = min(4, n_channels)
+        n_rows = (n_channels + n_cols - 1) // n_cols
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3 * n_rows))
+        if n_rows == 1 and n_cols == 1:
+            axes = np.array([[axes]])
+        elif n_rows == 1:
+            axes = axes.reshape(1, -1)
+        elif n_cols == 1:
+            axes = axes.reshape(-1, 1)
+        
+        # Get all data
+        data = fnirs_epochs.get_data(picks=hbo_channels)  # (trials, channels, time)
+        
+        for idx, ch_name in enumerate(hbo_channels):
+            row = idx // n_cols
+            col = idx % n_cols
+            ax = axes[row, col]
+            
+            # Get data for this channel
+            ch_data = data[:, idx, :]  # (trials, time)
+            mean_hrf = ch_data.mean(axis=0) * 1e6  # Convert to μM
+            std_hrf = ch_data.std(axis=0) * 1e6
+            
+            ax.plot(times, mean_hrf, 'r-', linewidth=2)
+            ax.fill_between(times, mean_hrf - std_hrf, mean_hrf + std_hrf,
+                           color='red', alpha=0.2)
+            ax.axvline(0, color='black', linestyle='--', linewidth=1)
+            ax.axvline(config.trials.task_duration_sec, color='gray', linestyle='--', linewidth=1)
+            ax.axhline(0, color='gray', linestyle='-', linewidth=0.5, alpha=0.5)
+            
+            # Simplify channel name for title
+            short_name = ch_name.replace('_hbo', '').replace('S', 'S').replace('D', '-D')
+            ax.set_title(short_name, fontsize=10, fontweight='bold')
+            ax.set_xlabel('Time (s)', fontsize=9)
+            ax.set_ylabel('ΔHbO (μM)', fontsize=9)
+            ax.grid(True, alpha=0.3)
+        
+        # Hide empty subplots
+        for idx in range(n_channels, n_rows * n_cols):
+            row = idx // n_cols
+            col = idx % n_cols
+            axes[row, col].set_visible(False)
+        
+        fig.suptitle(f'fNIRS Block Average - All HbO Channels\n'
+                    f'Subject {config.subject.id} | {len(fnirs_epochs)} trials',
+                    fontsize=14, fontweight='bold', y=1.02)
+        fig.tight_layout()
+        
+        # Save figure
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-fnirs_block_average.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"fNIRS block average saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to generate fNIRS block average: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def generate_fnirs_contrast_map(
+    fnirs_epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate contrast maps showing lateralization in fNIRS data.
+    
+    Creates bar plots comparing HbO amplitude between conditions and hemispheres
+    to visualize contralateral activation patterns.
+    
+    Scientific rationale:
+        - LEFT hand movement → Right hemisphere activation (contralateral)
+        - RIGHT hand movement → Left hemisphere activation (contralateral)
+        - Motor vs NOTHING → General motor network activation
+    
+    Args:
+        fnirs_epochs: MNE Epochs with fNIRS data
+        output_path: Directory to save plot
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Path to saved figure or None if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info("Generating fNIRS contrast map...")
+        
+        conditions = list(fnirs_epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        has_nothing = any('NOTHING' in cond for cond in conditions)
+        
+        # Get HbO channels
+        hbo_channels = [ch for ch in fnirs_epochs.ch_names if 'hbo' in ch.lower()]
+        
+        if not hbo_channels:
+            logger.warning("No HbO channels found")
+            return None
+        
+        # Define hemispheres
+        left_hbo = [ch for ch in hbo_channels if any(x in ch for x in ['S1', 'S3', 'S5', 'S7'])]
+        right_hbo = [ch for ch in hbo_channels if any(x in ch for x in ['S2', 'S4', 'S6', 'S8'])]
+        
+        if not left_hbo or not right_hbo:
+            mid = len(hbo_channels) // 2
+            left_hbo = hbo_channels[:mid] if mid > 0 else hbo_channels[:1]
+            right_hbo = hbo_channels[mid:] if mid > 0 else hbo_channels[1:2]
+        
+        times = fnirs_epochs.times
+        # Task window: from onset to end of task
+        task_mask = (times >= 2) & (times <= config.trials.task_duration_sec + 5)
+        
+        # Get condition names
+        left_cond = [c for c in conditions if 'LEFT' in c][0] if has_left else None
+        right_cond = [c for c in conditions if 'RIGHT' in c][0] if has_right else None
+        nothing_cond = [c for c in conditions if 'NOTHING' in c][0] if has_nothing else None
+        
+        # Calculate mean HbO amplitude during task for each condition and hemisphere
+        results = {}
+        
+        for cond_name, cond_key in [('LEFT', left_cond), ('RIGHT', right_cond), ('NOTHING', nothing_cond)]:
+            if cond_key is None:
+                continue
+            
+            epochs_cond = fnirs_epochs[cond_key]
+            
+            # Left hemisphere
+            if left_hbo:
+                data = epochs_cond.get_data(picks=left_hbo)[:, :, task_mask]
+                results[f'{cond_name}_left'] = data.mean() * 1e6
+                results[f'{cond_name}_left_std'] = data.mean(axis=(1, 2)).std() * 1e6
+            
+            # Right hemisphere
+            if right_hbo:
+                data = epochs_cond.get_data(picks=right_hbo)[:, :, task_mask]
+                results[f'{cond_name}_right'] = data.mean() * 1e6
+                results[f'{cond_name}_right_std'] = data.mean(axis=(1, 2)).std() * 1e6
+        
+        # Create figure
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        
+        # Plot 1: Condition comparison by hemisphere
+        ax = axes[0]
+        x = np.arange(2)
+        width = 0.25
+        
+        conditions_to_plot = []
+        if 'LEFT_left' in results:
+            conditions_to_plot.append(('LEFT', 'blue'))
+        if 'RIGHT_left' in results:
+            conditions_to_plot.append(('RIGHT', 'red'))
+        if 'NOTHING_left' in results:
+            conditions_to_plot.append(('NOTHING', 'green'))
+        
+        for i, (cond, color) in enumerate(conditions_to_plot):
+            left_val = results.get(f'{cond}_left', 0)
+            right_val = results.get(f'{cond}_right', 0)
+            left_err = results.get(f'{cond}_left_std', 0)
+            right_err = results.get(f'{cond}_right_std', 0)
+            
+            ax.bar(x + i * width, [left_val, right_val], width, 
+                  label=cond, color=color, alpha=0.7,
+                  yerr=[left_err, right_err], capsize=3)
+        
+        ax.set_xticks(x + width)
+        ax.set_xticklabels(['Left Hemisphere', 'Right Hemisphere'])
+        ax.set_ylabel('Mean ΔHbO (μM)', fontsize=11)
+        ax.set_title('HbO Amplitude by Condition & Hemisphere', fontsize=12, fontweight='bold')
+        ax.legend(loc='best')
+        ax.axhline(0, color='gray', linestyle='-', linewidth=0.5)
+        ax.grid(True, alpha=0.3, axis='y')
+        
+        # Plot 2: Lateralization Index
+        ax = axes[1]
+        lat_indices = []
+        lat_labels = []
+        lat_colors = []
+        
+        for cond, color in [('LEFT', 'blue'), ('RIGHT', 'red'), ('NOTHING', 'green')]:
+            if f'{cond}_left' in results and f'{cond}_right' in results:
+                # Lateralization index: (Right - Left) / (Right + Left)
+                left_val = results[f'{cond}_left']
+                right_val = results[f'{cond}_right']
+                if abs(left_val) + abs(right_val) > 0:
+                    lat_idx = (right_val - left_val) / (abs(right_val) + abs(left_val))
+                else:
+                    lat_idx = 0
+                lat_indices.append(lat_idx)
+                lat_labels.append(cond)
+                lat_colors.append(color)
+        
+        if lat_indices:
+            bars = ax.bar(lat_labels, lat_indices, color=lat_colors, alpha=0.7)
+            ax.axhline(0, color='black', linestyle='-', linewidth=1)
+            ax.set_ylabel('Lateralization Index\n(R-L)/(|R|+|L|)', fontsize=11)
+            ax.set_title('Hemispheric Lateralization\n(+) = Right dominant, (-) = Left dominant', 
+                        fontsize=12, fontweight='bold')
+            ax.set_ylim(-1, 1)
+            ax.grid(True, alpha=0.3, axis='y')
+            
+            # Add expected pattern annotation
+            ax.text(0.02, 0.98, 'Expected:\nLEFT hand → (+) Right\nRIGHT hand → (-) Left',
+                   transform=ax.transAxes, fontsize=9, verticalalignment='top',
+                   bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        
+        # Plot 3: Motor vs Rest contrast
+        ax = axes[2]
+        if has_nothing and (has_left or has_right):
+            motor_conditions = []
+            if 'LEFT_left' in results:
+                motor_conditions.append(('LEFT', results['LEFT_left'], results['LEFT_right']))
+            if 'RIGHT_left' in results:
+                motor_conditions.append(('RIGHT', results['RIGHT_left'], results['RIGHT_right']))
+            
+            if motor_conditions:
+                # Average motor activation
+                motor_left = np.mean([c[1] for c in motor_conditions])
+                motor_right = np.mean([c[2] for c in motor_conditions])
+                nothing_left = results.get('NOTHING_left', 0)
+                nothing_right = results.get('NOTHING_right', 0)
+                
+                x = np.arange(2)
+                width = 0.35
+                
+                ax.bar(x - width/2, [motor_left, motor_right], width, 
+                      label='Motor (L+R avg)', color='purple', alpha=0.7)
+                ax.bar(x + width/2, [nothing_left, nothing_right], width,
+                      label='NOTHING', color='gray', alpha=0.7)
+                
+                ax.set_xticks(x)
+                ax.set_xticklabels(['Left Hemisphere', 'Right Hemisphere'])
+                ax.set_ylabel('Mean ΔHbO (μM)', fontsize=11)
+                ax.set_title('Motor Execution vs Rest\n(Sanity Check)', fontsize=12, fontweight='bold')
+                ax.legend(loc='best')
+                ax.axhline(0, color='gray', linestyle='-', linewidth=0.5)
+                ax.grid(True, alpha=0.3, axis='y')
+        else:
+            ax.text(0.5, 0.5, 'NOTHING condition\nnot available', 
+                   transform=ax.transAxes, ha='center', va='center', fontsize=12)
+            ax.set_title('Motor vs Rest', fontsize=12, fontweight='bold')
+        
+        fig.suptitle(f'fNIRS Contrast Analysis\nSubject {config.subject.id}',
+                    fontsize=14, fontweight='bold', y=1.02)
+        fig.tight_layout()
+        
+        # Save figure
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-fnirs_contrast.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"fNIRS contrast map saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to generate fNIRS contrast map: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def generate_contralateral_erd_plots(
@@ -2750,6 +3946,10 @@ def run_eeg_analysis(
         logger.info("Generating Contrast Analysis...")
         contrast_analysis_path, _ = generate_contrast_analysis(epochs, output_path, config)
         
+        # Generate CSP Analysis (LEFT vs RIGHT discrimination)
+        logger.info("Generating CSP Analysis...")
+        csp_analysis_path, csp_results = generate_csp_analysis(epochs, output_path, config)
+        
         # Generate contralateral ERD/ERS plots
         logger.info("Generating contralateral ERD/ERS plots...")
         contralateral_timecourse_path, contralateral_topoplot_path = generate_contralateral_erd_plots(
@@ -2871,6 +4071,8 @@ def run_eeg_analysis(
         "right_topo_path": right_topo_path,
         "tfr_maps_path": tfr_maps_path,
         "contrast_analysis_path": contrast_analysis_path,
+        "csp_analysis_path": csp_analysis_path,
+        "csp_results": csp_results,
         "contralateral_timecourse_path": contralateral_timecourse_path,
         "contralateral_topoplot_path": contralateral_topoplot_path,
     }
@@ -3033,6 +4235,9 @@ def run_eeg_analysis_from_epochs(
         f"EEG analysis complete: {len(erd_ers_results)} channels analyzed"
     )
 
+    # Generate ERP Analysis
+    erp_analysis_path = generate_erp_analysis(epochs, output_path, config)
+    
     # Note: PSD paths are already generated before calling this function
     # Return None for PSD paths as they should already exist
     return {
@@ -3044,6 +4249,8 @@ def run_eeg_analysis_from_epochs(
         "right_psd_path": None,  # Already generated
         "right_topo_path": None,  # Already generated
         "tfr_maps_path": None,  # Already generated
+        "tfr_maps_roi_path": None,  # Already generated
+        "erp_analysis_path": erp_analysis_path,
         "contrast_analysis_path": None,  # Already generated
         "contralateral_timecourse_path": None,  # Already generated
         "contralateral_topoplot_path": None,  # Already generated
@@ -3489,6 +4696,24 @@ def generate_visualizations(
         if contrast_analysis_path and contrast_analysis_path.exists():
             visualization_paths["eeg_contrast_analysis"] = contrast_analysis_path
             logger.info(f"Found Contrast Analysis: {contrast_analysis_path}")
+        
+        # Add CSP Analysis if it exists
+        csp_analysis_path = eeg_results.get("csp_analysis_path")
+        if csp_analysis_path and csp_analysis_path.exists():
+            visualization_paths["eeg_csp_analysis"] = csp_analysis_path
+            logger.info(f"Found CSP Analysis: {csp_analysis_path}")
+
+        # Add Clustered TFR Maps (ROI) if they exist
+        tfr_maps_roi_path = eeg_results.get("tfr_maps_roi_path")
+        if tfr_maps_roi_path and tfr_maps_roi_path.exists():
+            visualization_paths["eeg_tfr_maps_roi"] = tfr_maps_roi_path
+            logger.info(f"Found Clustered TFR Maps (ROI): {tfr_maps_roi_path}")
+            
+        # Add ERP Analysis if it exists
+        erp_analysis_path = eeg_results.get("erp_analysis_path")
+        if erp_analysis_path and erp_analysis_path.exists():
+            visualization_paths["eeg_erp_analysis"] = erp_analysis_path
+            logger.info(f"Found ERP Analysis: {erp_analysis_path}")
 
         # Visualization 1: Bilateral ERD timecourse (C3 and C4)
         if tfr is not None:
@@ -3642,6 +4867,36 @@ def generate_visualizations(
                 logger.error(f"Failed to generate HRF curves: {e}")
         else:
             logger.warning("HRF data not available, skipping HRF visualization")
+        
+        # Generate fNIRS HRF by condition
+        if epochs is not None:
+            try:
+                logger.info("Generating fNIRS HRF by condition...")
+                hrf_by_condition_path = generate_fnirs_hrf_by_condition(epochs, output_path, config)
+                if hrf_by_condition_path:
+                    visualization_paths["fnirs_hrf_by_condition"] = hrf_by_condition_path
+            except Exception as e:
+                logger.error(f"Failed to generate fNIRS HRF by condition: {e}")
+        
+        # Generate fNIRS block average
+        if epochs is not None:
+            try:
+                logger.info("Generating fNIRS block average...")
+                block_avg_path = generate_fnirs_block_average(epochs, output_path, config)
+                if block_avg_path:
+                    visualization_paths["fnirs_block_average"] = block_avg_path
+            except Exception as e:
+                logger.error(f"Failed to generate fNIRS block average: {e}")
+        
+        # Generate fNIRS contrast map
+        if epochs is not None:
+            try:
+                logger.info("Generating fNIRS contrast map...")
+                contrast_path = generate_fnirs_contrast_map(epochs, output_path, config)
+                if contrast_path:
+                    visualization_paths["fnirs_contrast"] = contrast_path
+            except Exception as e:
+                logger.error(f"Failed to generate fNIRS contrast map: {e}")
 
     else:
         logger.info("fNIRS results not available, skipping fNIRS visualizations")
@@ -4251,9 +5506,17 @@ def main() -> int:
                         logger.info("Generating Time-Frequency Maps...")
                         tfr_maps_path = generate_tfr_maps(epochs, output_path, config)
                         
+                        # Generate Clustered TFR Maps (ROI analysis)
+                        logger.info("Generating Clustered TFR Maps (ROI)...")
+                        tfr_maps_roi_path = generate_clustered_tfr_maps(epochs, output_path, config)
+                        
                         # Generate Contrast Analysis (lateralization detection)
                         logger.info("Generating Contrast Analysis...")
                         contrast_analysis_path, _ = generate_contrast_analysis(epochs, output_path, config)
+                        
+                        # Generate CSP Analysis (LEFT vs RIGHT discrimination)
+                        logger.info("Generating CSP Analysis...")
+                        csp_analysis_path, csp_results = generate_csp_analysis(epochs, output_path, config)
                         
                         # Generate contralateral ERD/ERS plots
                         logger.info("Generating contralateral ERD/ERS plots...")
@@ -4265,13 +5528,16 @@ def main() -> int:
                         logger.info("Running EEG analysis on loaded epochs (TFR + ERD/ERS)...")
                         eeg_results = run_eeg_analysis_from_epochs(epochs, processed_eeg, config, output_path)
                         
-                        # Add PSD, topoplot, TFR maps, contrast analysis, and contralateral ERD paths to results
+                        # Add PSD, topoplot, TFR maps, contrast analysis, CSP, and contralateral ERD paths to results
                         eeg_results['left_psd_path'] = left_psd_path
                         eeg_results['left_topo_path'] = left_topo_path
                         eeg_results['right_psd_path'] = right_psd_path
                         eeg_results['right_topo_path'] = right_topo_path
                         eeg_results['tfr_maps_path'] = tfr_maps_path
+                        eeg_results['tfr_maps_roi_path'] = tfr_maps_roi_path
                         eeg_results['contrast_analysis_path'] = contrast_analysis_path
+                        eeg_results['csp_analysis_path'] = csp_analysis_path
+                        eeg_results['csp_results'] = csp_results
                         eeg_results['contralateral_timecourse_path'] = contralateral_timecourse_path
                         eeg_results['contralateral_topoplot_path'] = contralateral_topoplot_path
                         
@@ -4360,6 +5626,7 @@ def main() -> int:
         # =====================================================================
         # STAGE 6: Visualizations
         # =====================================================================
+        visualization_paths = {}
         try:
             logger.info("\n" + "=" * 70)
             logger.info("STAGE 6: Visualizations")
