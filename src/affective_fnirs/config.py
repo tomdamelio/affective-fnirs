@@ -181,6 +181,7 @@ class AnalysisConfig:
     dpf: float = 6.0
     tfr_view_tmin_sec: float | None = None
     tfr_view_tmax_sec: float | None = None
+    use_laplacian: bool = False
 
     def __post_init__(self) -> None:
         """Validate analysis parameters."""

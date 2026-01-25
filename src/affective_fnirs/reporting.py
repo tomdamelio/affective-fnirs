@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Reporting Module for Multimodal Validation Pipeline.
 
@@ -95,6 +96,20 @@ class CouplingMetrics:
     correlation_adequate: bool
 
 
+
+@dataclass
+class ClassificationMetrics:
+    """Classification performance metrics for motor tasks."""
+
+    accuracy: float
+    std_accuracy: float
+    n_folds: int
+    n_trials_left: int
+    n_trials_right: int
+    method: str = "CSP + LDA"
+    chance_level: float = 0.5
+
+
 @dataclass
 class LateralizationMetrics:
     """Lateralization analysis results for motor tasks."""
@@ -184,6 +199,8 @@ class ValidationResults:
     experiment_qa: ExperimentQA
     lateralization_metrics: LateralizationMetrics | None = None
     erd_metrics_c4: ERDMetrics | None = None  # C4 ERD metrics
+    classification_metrics: ClassificationMetrics | None = None  # Classification results
+
 
 
 def generate_quality_report(
@@ -521,7 +538,7 @@ def generate_validation_report_html(
     # =========================================================================
     eeg_section_html = """
     <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0;">
-        <h2 style="color: #1976d2;">📊 SUPRA-SECTION 1: EEG ANALYSIS</h2>
+        <h2 style="color: #1976d2;"> SUPRA-SECTION 1: EEG ANALYSIS</h2>
         <p>Analysis of motor cortex activity during finger tapping task using 4 good EEG channels (C3, C4, F3, F4).</p>
     </div>
     """
@@ -604,6 +621,40 @@ def generate_validation_report_html(
                 """
                 report.add_html(psd_left_html, title="1.0.1 Left Hemisphere PSD by Condition")
     
+
+    
+    # 1.0.1.B: Beta ERD Topoplots (Exploratory)
+    if "eeg_beta_topoplot" in figures and figures["eeg_beta_topoplot"] is not None:
+        import base64
+        from pathlib import Path
+        
+        beta_topo_value = figures["eeg_beta_topoplot"]
+        if isinstance(beta_topo_value, (str, Path)):
+            beta_topo_path = Path(beta_topo_value)
+            
+            if beta_topo_path.exists():
+                with open(beta_topo_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                beta_topo_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.1.B Exploratory: Beta Band ERD Topography</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        <strong>Beta Band (13-30 Hz) Power Change</strong>
+                        <br><br>
+                        Shows the spatial distribution of desynchronization (ERD) across the entire head.
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>Blue blobs:</strong> Areas of active cortical processing (ERD).</li>
+                            <li><strong>Goal:</strong> Identify if the "motor hotspot" is displaced from standard C3/C4 locations.</li>
+                        </ul>
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="Beta ERD Topoplots">
+                </div>
+                """
+                report.add_html(beta_topo_html, title="1.0.1.B Beta ERD Topography")
+
     # 1.0.2: Right Hemisphere PSD by Condition
     if "eeg_psd_right" in figures and figures["eeg_psd_right"] is not None:
         import base64
@@ -708,9 +759,12 @@ def generate_validation_report_html(
                         <br><br>
                         Averaged power changes across clustered electrodes to handle subject variability and improve signal-to-noise ratio.
                         <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
-                            <li><strong>Left Cluster:</strong> FC1, FC5, C3, CP1, CP5 (Left Sensorimotor Area)</li>
-                            <li><strong>Right Cluster:</strong> FC2, FC6, C4, CP2, CP6 (Right Sensorimotor Area)</li>
+                            <li><strong>Standard Motor:</strong> C3/C4 centered (FC1, FC5, C3, CP1, CP5...)</li>
+                            <li><strong>Frontal Motor:</strong> Anterior focus (F3, FC1, FC5...)</li>
+                            <li><strong>Parietal Motor:</strong> Posterior focus (P3, CP1, CP5...)</li>
                         </ul>
+                        <br>
+                        <strong>Exploratory:</strong> Comparing these clusters helps locate the effect if displaced anteriorly or posteriorly.
                         <br>
                         Shows robust motor patterns averaged across the entire motor cortex region.
                     </p>
@@ -783,8 +837,8 @@ def generate_validation_report_html(
                         <br><br>
                         <strong>Row 1: Lateralization Contrast (Contralateral vs Ipsilateral)</strong>
                         <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
-                            <li><strong>C3:</strong> RIGHT (contralateral) - LEFT (ipsilateral) → Expected: <strong>Negative</strong> (more ERD for contralateral)</li>
-                            <li><strong>C4:</strong> LEFT (contralateral) - RIGHT (ipsilateral) → Expected: <strong>Negative</strong> (more ERD for contralateral)</li>
+                            <li><strong>C3:</strong> RIGHT (contralateral) - LEFT (ipsilateral) -> Expected: <strong>Negative</strong> (more ERD for contralateral)</li>
+                            <li><strong>C4:</strong> LEFT (contralateral) - RIGHT (ipsilateral) -> Expected: <strong>Negative</strong> (more ERD for contralateral)</li>
                         </ul>
                         <br>
                         <strong>Row 2: Motor Execution Contrast (if NOTHING available)</strong>
@@ -847,12 +901,39 @@ def generate_validation_report_html(
                                 Good discrimination = clear separation between blue (LEFT) and red (RIGHT) clusters.</li>
                             <li><strong>Row 2 Right (Metrics):</strong> Cross-validation accuracy. 
                                 >70% suggests meaningful lateralization; ~50% = chance level (no discrimination).</li>
-                            <li><strong>Row 3 (Time courses):</strong> CSP component activity over time. 
-                                Different amplitude patterns between classes indicate discriminative activity.</li>
                         </ul>
                         <br>
                         <strong>Reference:</strong> Blankertz et al. (2008). Optimizing Spatial Filters for Robust EEG Single-Trial Analysis.
                     </p>
+                    """
+                
+                # Add explicit metrics table if available
+                if validation_results.classification_metrics:
+                    cm = validation_results.classification_metrics
+                    csp_analysis_html += f"""
+                    <div style="background-color: #f8f9fa; border-left: 4px solid #1976d2; padding: 15px; margin: 15px 0;">
+                        <h4 style="margin-top: 0; color: #1976d2;">Classification Performance ({cm.method})</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="border-bottom: 1px solid #ddd;">
+                                <td style="padding: 8px; font-weight: bold;">Accuracy</td>
+                                <td style="padding: 8px;">{cm.accuracy:.1%} ± {cm.std_accuracy:.1%}</td>
+                                <td style="padding: 8px; font-weight: bold;">Chance Level</td>
+                                <td style="padding: 8px;">{cm.chance_level:.1%}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #ddd;">
+                                <td style="padding: 8px; font-weight: bold;">Cross-Validation</td>
+                                <td style="padding: 8px;">{cm.n_folds}-fold</td>
+                                <td style="padding: 8px; font-weight: bold;">Trials</td>
+                                <td style="padding: 8px;">LEFT: {cm.n_trials_left}, RIGHT: {cm.n_trials_right}</td>
+                            </tr>
+                        </table>
+                        <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">
+                            * Accuracy > 70% typically indicates reliable single-trial classifiability suitable for BCI.
+                        </p>
+                    </div>
+                    """
+                
+                csp_analysis_html += f"""
                     <img src="data:image/png;base64,{img_data}" 
                          style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
                          alt="CSP Analysis">
@@ -904,9 +985,9 @@ def generate_validation_report_html(
                 <div style="page-break-inside: avoid; margin: 20px 0;">
                     <h3>1.0.5 Contralateral ERD/ERS Spatial Distribution</h3>
                     <p style="margin: 10px 0; color: #555; font-size: 14px;">
-                        Topographic maps showing ERD/ERS spatial distribution during task execution (2-4s after onset). 
-                        Blue = desynchronization (ERD), Red = synchronization (ERS). 
-                        Bottom row shows LEFT-RIGHT contrast highlighting contralateral effect.
+                        Topographic maps showing ERD and ERS spatial distribution during task execution.
+                        Blue indicates desynchronization (ERD), Red indicates synchronization (ERS).
+                        Bottom row shows LEFT minus RIGHT contrast.
                     </p>
                     <img src="data:image/png;base64,{img_data}" 
                          style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
@@ -954,7 +1035,7 @@ def generate_validation_report_html(
             figures["eeg_spectrogram_left_by_condition"],
             title="1.5 Left Motor Cortex (C3) - By Condition",
             caption="Time-frequency spectrograms for LEFT, RIGHT, and NOTHING conditions in C3. "
-            "Expected: RIGHT hand movement → ERD in C3 (contralateral control).",
+            "Expected: RIGHT hand movement -> ERD in C3 (contralateral control).",
         )
 
     if "eeg_spectrogram_right_by_condition" in figures and figures["eeg_spectrogram_right_by_condition"] is not None:
@@ -962,7 +1043,7 @@ def generate_validation_report_html(
             figures["eeg_spectrogram_right_by_condition"],
             title="1.6 Right Motor Cortex (C4) - By Condition",
             caption="Time-frequency spectrograms for LEFT, RIGHT, and NOTHING conditions in C4. "
-            "Expected: LEFT hand movement → ERD in C4 (contralateral control).",
+            "Expected: LEFT hand movement -> ERD in C4 (contralateral control).",
         )
 
     # 1.7: Lateralization Analysis
@@ -975,7 +1056,7 @@ def generate_validation_report_html(
                 figures["lateralization_timecourse"],
                 title="1.8 Lateralization Time-Course",
                 caption="ERD/ERS time-course for LEFT, RIGHT, and NOTHING conditions. "
-                "Expected: LEFT hand → C4 ERD, RIGHT hand → C3 ERD (contralateral control).",
+                "Expected: LEFT hand -> C4 ERD, RIGHT hand -> C3 ERD (contralateral control).",
             )
 
         if "lateralization_barplot" in figures and figures["lateralization_barplot"] is not None:
@@ -990,7 +1071,7 @@ def generate_validation_report_html(
     # =========================================================================
     fnirs_section_html = """
     <div style="background-color: #fff3e0; padding: 15px; border-radius: 5px; margin: 20px 0;">
-        <h2 style="color: #f57c00;">🧠 SUPRA-SECTION 2: fNIRS ANALYSIS</h2>
+        <h2 style="color: #f57c00;"> SUPRA-SECTION 2: fNIRS ANALYSIS</h2>
         <p>Analysis of hemodynamic response in motor cortex during finger tapping task.</p>
     </div>
     """
@@ -1044,7 +1125,7 @@ def generate_validation_report_html(
                         <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
                             <li><strong>HbO (top row):</strong> Increase during motor task (positive deflection)</li>
                             <li><strong>HbR (bottom row):</strong> Decrease during motor task (negative deflection)</li>
-                            <li><strong>Contralateral effect:</strong> LEFT hand → Right hemisphere activation, RIGHT hand → Left hemisphere activation</li>
+                            <li><strong>Contralateral effect:</strong> LEFT hand -> Right hemisphere activation, RIGHT hand -> Left hemisphere activation</li>
                             <li><strong>NOTHING condition:</strong> Minimal or no hemodynamic response (control)</li>
                         </ul>
                     </p>
@@ -1111,7 +1192,7 @@ def generate_validation_report_html(
                             <li><strong>Right:</strong> Motor vs Rest comparison (sanity check)</li>
                         </ul>
                         <br>
-                        <strong>Expected:</strong> LEFT hand → positive lateralization (right hemisphere), RIGHT hand → negative lateralization (left hemisphere)
+                        <strong>Expected:</strong> LEFT hand -> positive lateralization (right hemisphere), RIGHT hand -> negative lateralization (left hemisphere)
                     </p>
                     <img src="data:image/png;base64,{img_data}" 
                          style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
@@ -1125,7 +1206,7 @@ def generate_validation_report_html(
     # =========================================================================
     multimodal_section_html = """
     <div style="background-color: #f3e5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-        <h2 style="color: #7b1fa2;">🔗 SUPRA-SECTION 3: EEG + fNIRS (MULTIMODAL COUPLING)</h2>
+        <h2 style="color: #7b1fa2;"> SUPRA-SECTION 3: EEG + fNIRS (MULTIMODAL COUPLING)</h2>
         <p>Analysis of neurovascular coupling between EEG and fNIRS signals.</p>
     </div>
     """
@@ -1763,9 +1844,9 @@ def _generate_lateralization_section_html(lat_metrics: LateralizationMetrics) ->
     
     <p><strong>Expected Patterns:</strong></p>
     <ul>
-        <li>LEFT hand movement → ERD in C4 (right hemisphere, contralateral)</li>
-        <li>RIGHT hand movement → ERD in C3 (left hemisphere, contralateral)</li>
-        <li>NOTHING condition → No significant ERD (baseline control)</li>
+        <li>LEFT hand movement -> ERD in C4 (right hemisphere, contralateral)</li>
+        <li>RIGHT hand movement -> ERD in C3 (left hemisphere, contralateral)</li>
+        <li>NOTHING condition -> No significant ERD (baseline control)</li>
         <li>ERD threshold: < -5% indicates significant desynchronization</li>
     </ul>
     """

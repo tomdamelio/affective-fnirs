@@ -2,14 +2,14 @@
   "subject_id": "010",
   "session_id": "001",
   "task": "fingertapping",
-  "timestamp": "2026-01-16T05:34:43.086226",
+  "timestamp": "2026-01-24T13:48:01.664477",
   "erd_metrics": {
     "channel": "C3",
-    "alpha_erd_percent": -0.1741746336864395,
+    "alpha_erd_percent": -0.1399929922390658,
     "alpha_significant": false,
-    "beta_erd_percent": -0.23330838336349222,
+    "beta_erd_percent": -0.19228151965305737,
     "beta_significant": false,
-    "beta_rebound_percent": 0.21434544612031106,
+    "beta_rebound_percent": 0.24945205741617318,
     "beta_rebound_observed": false
   },
   "hrf_validation": {

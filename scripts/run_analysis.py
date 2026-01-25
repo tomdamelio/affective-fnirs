@@ -70,6 +70,7 @@ from affective_fnirs.reporting import (
     CouplingMetrics,
     ExperimentQA,
     LateralizationMetrics,
+    ClassificationMetrics,
     generate_validation_report_html,
 )
 from affective_fnirs.fnirs_quality import (
@@ -368,6 +369,186 @@ def generate_tfr_maps(
         return None
 
 
+
+def generate_beta_topoplots(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate Beta Band (13-30 Hz) ERD Topoplots across the whole head.
+    
+    Visualization to identify the spatial distribution of beta desynchronization
+    across the entire head, helping to locate the motor hotspot if displaced.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        logger.info("Generating Beta Band (13-30 Hz) ERD Topoplots...")
+        
+        # Use beta band frequencies
+        freqs = np.arange(13, 31, 1)
+        n_cycles = freqs / 2.0
+        
+        # Compute TFR for all channels
+        tfr = mne.time_frequency.tfr_multitaper(
+            epochs,
+            freqs=freqs,
+            n_cycles=n_cycles,
+            use_fft=True,
+            return_itc=False,
+            average=True,
+            n_jobs=1
+        )
+        
+        # Apply baseline correction
+        tfr.apply_baseline(
+            (config.analysis.baseline_window_start_sec, config.analysis.baseline_window_end_sec),
+            mode="percent"
+        )
+        
+        # Define window
+        t_start = config.analysis.task_window_start_sec + 1.0
+        t_end = config.analysis.task_window_end_sec
+
+        # Create figure
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+        # Plot topomap using instance method (proven to work in contralateral)
+        tfr.plot_topomap(
+            tmin=t_start, 
+            tmax=t_end,
+            fmin=13, 
+            fmax=30,
+            baseline=None, # Already applied
+            mode='mean',
+            show=False,
+            axes=ax,
+            colorbar=True,
+            cmap="RdBu_r"
+        )
+        
+        ax.set_title(f"Beta Band (13-30 Hz) ERD Topography\nMean Power ({t_start}-{t_end}s)", fontsize=14)
+        
+        # Save figure
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-beta_topoplot.png"
+        )
+        path = output_path / filename
+        fig.savefig(path, dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        
+        logger.info(f"Saved beta topoplot to: {path}")
+        return path
+        
+    except Exception as e:
+        logger.error(f"Failed to generate beta topoplots: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def generate_contralateral_erd_plots(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> tuple[Optional[Path], Optional[Path]]:
+    """
+    Generate Contralateral ERD/ERS plots (Timecourse and Topoplot).
+    
+    Creates specific visualizations highlighting the difference between 
+    contralateral and ipsilateral activity.
+    """
+    logger = logging.getLogger(__name__)
+    timecourse_path = None
+    topoplot_path = None
+    
+    try:
+        logger.info("Generating Contralateral ERD/ERS plots...")
+        
+        # 1. Contralateral Timecourse - skipped as it's handled by main bilateral plot
+            
+        # 2. Contralateral Topoplots
+        # Plot difference map: LEFT hand - RIGHT hand (or vice-versa depending on what we want to highlight)
+        # Expected: LEFT Hand -> Right Motor ERD (C4)
+        # Expected: RIGHT Hand -> Left Motor ERD (C3)
+        # Contrast LEFT - RIGHT:
+        # C4 should be more negative in LEFT condition (Left ERD > Right ERD) -> Negative value
+        # C3 should be less negative in LEFT condition (Left ERD < Right ERD) -> Positive value
+        
+        if "LEFT" in epochs.event_id and "RIGHT" in epochs.event_id:
+            logger.info("Computing LEFT vs RIGHT contrast for topoplots...")
+            
+            # Compute TFR for LEFT and RIGHT
+            freqs = np.arange(8, 30, 1) # Alpha and Beta
+            n_cycles = freqs / 2.0
+            
+            tfr_left = mne.time_frequency.tfr_multitaper(
+                epochs["LEFT"],
+                freqs=freqs,
+                n_cycles=n_cycles,
+                use_fft=True,
+                return_itc=False,
+                average=True,
+                n_jobs=1
+            )
+            tfr_right = mne.time_frequency.tfr_multitaper(
+                epochs["RIGHT"],
+                freqs=freqs,
+                n_cycles=n_cycles,
+                use_fft=True,
+                return_itc=False,
+                average=True,
+                n_jobs=1
+            )
+            
+            # Baseline correct
+            tfr_left.apply_baseline((config.analysis.baseline_window_start_sec, config.analysis.baseline_window_end_sec), mode="percent")
+            tfr_right.apply_baseline((config.analysis.baseline_window_start_sec, config.analysis.baseline_window_end_sec), mode="percent")
+            
+            # Subtract: LEFT - RIGHT
+            tfr_diff = tfr_left.copy()
+            tfr_diff.data = tfr_left.data - tfr_right.data
+            
+            # Plot Topomap of difference
+            fig, ax = plt.subplots(figsize=(10, 8))
+            tfr_diff.plot_topomap(
+                tmin=2.0, tmax=4.0, # Early execution phase
+                fmin=8, fmax=30,
+                baseline=None,
+                mode='mean',
+                show=False,
+                axes=ax,
+                colorbar=True,
+                cmap="RdBu_r"
+            )
+            ax.set_title("Contralateral Contrast (LEFT - RIGHT)\nAlpha/Beta (8-30 Hz), 2.0-4.0s", fontsize=14)
+            
+            filename = (
+                f"sub-{config.subject.id}_"
+                f"ses-{config.subject.session}_"
+                f"task-{config.subject.task}_"
+                f"desc-contralateral_topoplot.png"
+            )
+            path = output_path / filename
+            fig.savefig(path, dpi=300, bbox_inches='tight')
+            plt.close(fig)
+            topoplot_path = path
+            
+            logger.info(f"Saved contralateral topoplot to: {path}")
+        else:
+            logger.warning("LEFT or RIGHT conditions missing, skipping contralateral topoplot.")
+        
+    except Exception as e:
+        logger.error(f"Failed to generate contralateral plots: {e}")
+        import traceback
+        traceback.print_exc()
+        
+    return timecourse_path, topoplot_path
+
+
 def generate_clustered_tfr_maps(
     epochs: mne.Epochs,
     output_path: Path,
@@ -391,9 +572,15 @@ def generate_clustered_tfr_maps(
     logger = logging.getLogger(__name__)
     
     try:
-        # ROI Definitions
-        left_cluster = ['FC1', 'FC5', 'C3', 'CP1', 'CP5']
-        right_cluster = ['FC2', 'FC6', 'C4', 'CP2', 'CP6']
+        # Exploratory ROI Definitions
+        clusters = {
+            'Standard_Motor_L': ['FC1', 'FC5', 'C3', 'CP1', 'CP5'],
+            'Standard_Motor_R': ['FC2', 'FC6', 'C4', 'CP2', 'CP6'],
+            'Frontal_Motor_L': ['F3', 'FC1', 'FC5'],
+            'Frontal_Motor_R': ['F4', 'FC2', 'FC6'],
+            'Parietal_Motor_L': ['P3', 'CP1', 'CP5'],
+            'Parietal_Motor_R': ['P4', 'CP2', 'CP6'],
+        }
         
         # Check conditions
         conditions = list(epochs.event_id.keys())
@@ -405,16 +592,20 @@ def generate_clustered_tfr_maps(
             logger.warning("Need both LEFT and RIGHT conditions for TFR maps")
             return None
             
-        # Validate channels exist
+        # Validate channels exist for each cluster (filter out missing)
         available_ch = epochs.ch_names
-        valid_left = [ch for ch in left_cluster if ch in available_ch]
-        valid_right = [ch for ch in right_cluster if ch in available_ch]
+        valid_clusters = {}
+        for name, chs in clusters.items():
+            valid_chs = [ch for ch in chs if ch in available_ch]
+            if valid_chs:
+                valid_clusters[name] = valid_chs
+            else:
+                logger.warning(f"Skipping cluster {name}: No valid channels found")
         
-        if not valid_left or not valid_right:
-            logger.warning(f"Missing channels for clusters. Left found: {valid_left}, Right found: {valid_right}")
+        if not valid_clusters:
             return None
             
-        logger.info(f"Generating Clustered TFR maps (Left: {len(valid_left)} ch, Right: {len(valid_right)} ch)...")
+        logger.info(f"Generating Clustered TFR maps for {len(valid_clusters)} clusters...")
         
         from affective_fnirs.eeg_analysis import compute_tfr
         
@@ -429,10 +620,7 @@ def generate_clustered_tfr_maps(
         # Helper to compute ROI average TFR
         def compute_roi_tfr(condition, channels):
             """Compute TFR averaged across ROI channels."""
-            # Make a copy of epochs and pick only ROI channels
             epochs_roi = epochs[condition].copy().pick_channels(channels)
-            
-            # Compute TFR for all channels in ROI
             tfr = compute_tfr(
                 epochs_roi,
                 freqs=freqs,
@@ -441,71 +629,52 @@ def generate_clustered_tfr_maps(
                          config.analysis.baseline_window_end_sec),
                 baseline_mode="percent",
             )
-            
-            # Average across channels: data shape is (n_channels, n_freqs, n_times)
-            # After averaging, we get (1, n_freqs, n_times)
+            # Average across channels
             avg_data = np.mean(tfr.data, axis=0, keepdims=True)
             
-            # Create a new AverageTFR with averaged data
-            # Use AverageTFRArray class which allows creating from numpy arrays (MNE 1.9+)
             import mne
-            new_info = mne.create_info(
-                ch_names=['ROI_AVG'],
-                sfreq=tfr.info['sfreq'],
-                ch_types=['eeg']
-            )
-            
-            # Create new AverageTFRArray (correct API for MNE 1.9)
+            new_info = mne.create_info(ch_names=['ROI_AVG'], sfreq=tfr.info['sfreq'], ch_types=['eeg'])
             avg_tfr = mne.time_frequency.AverageTFRArray(
-                info=new_info,
-                data=avg_data,
-                times=tfr.times,
-                freqs=tfr.freqs,
-                nave=tfr.nave
+                info=new_info, data=avg_data, times=tfr.times, freqs=tfr.freqs, nave=tfr.nave
             )
-            
             return avg_tfr
 
-        # Compute TFRs
+        # Compute TFRs for each Cluster-Condition pair
         logger.info("Computing ROI TFRs...")
         
-        tfr_left_roi_L = compute_roi_tfr(left_cond, valid_left)
-        tfr_left_roi_R = compute_roi_tfr(left_cond, valid_right)
-        
-        tfr_right_roi_L = compute_roi_tfr(right_cond, valid_left)
-        tfr_right_roi_R = compute_roi_tfr(right_cond, valid_right)
-        
-        tfr_nothing_roi_L = None
-        tfr_nothing_roi_R = None
-        
-        if nothing_cond:
-            tfr_nothing_roi_L = compute_roi_tfr(nothing_cond, valid_left)
-            tfr_nothing_roi_R = compute_roi_tfr(nothing_cond, valid_right)
+        results = {}
+        for cluster_name, channels in valid_clusters.items():
+            results[cluster_name] = {
+                'LEFT_HAND': compute_roi_tfr(left_cond, channels),
+                'RIGHT_HAND': compute_roi_tfr(right_cond, channels),
+                'NOTHING': compute_roi_tfr(nothing_cond, channels) if nothing_cond else None
+            }
 
-        # Plotting
-        n_cols = 3 if tfr_nothing_roi_L else 2
-        fig, axes = plt.subplots(2, n_cols, figsize=(8*n_cols, 10))
+        # Plotting - One generic figure for Standard, or multiple?
+        # Let's do one big figure with rows = clusters, cols = conditions
+        
+        n_clusters = len(valid_clusters)
+        n_conds = 3 if nothing_cond else 2
+        
+        # If too many clusters, split into multiple figures? 
+        # For now, let's just plot Standard, Frontal, Parietal (left/right pairs)
+        # We have 6 clusters (3 pairs). 6 rows.
+        
+        fig, axes = plt.subplots(n_clusters, n_conds, figsize=(5*n_conds, 3*n_clusters))
+        if n_clusters == 1: axes = np.array([axes]) # Ensure 2D array
         
         # Time window
-        if config.analysis.tfr_view_tmin_sec is not None:
-             tmin = config.analysis.tfr_view_tmin_sec
-        else:
-             tmin = -1.0
+        tmin = config.analysis.tfr_view_tmin_sec if config.analysis.tfr_view_tmin_sec is not None else -1.0
+        tmax = config.analysis.tfr_view_tmax_sec if config.analysis.tfr_view_tmax_sec is not None else config.trials.task_duration_sec + 2.0
              
-        if config.analysis.tfr_view_tmax_sec is not None:
-             tmax = config.analysis.tfr_view_tmax_sec
-        else:
-             tmax = config.trials.task_duration_sec + 2.0
-             
-        # Determine color scale
-        all_data = [
-            tfr_left_roi_L.data, tfr_left_roi_R.data,
-            tfr_right_roi_L.data, tfr_right_roi_R.data
-        ]
-        if tfr_nothing_roi_L:
-            all_data.extend([tfr_nothing_roi_L.data, tfr_nothing_roi_R.data])
+        # Determine color scale (global for comparison)
+        all_data_vals = []
+        for c_res in results.values():
+            all_data_vals.append(c_res['LEFT_HAND'].data)
+            all_data_vals.append(c_res['RIGHT_HAND'].data)
+            if c_res['NOTHING']: all_data_vals.append(c_res['NOTHING'].data)
             
-        all_data_concat = np.concatenate([d.flatten() for d in all_data])
+        all_data_concat = np.concatenate([d.flatten() for d in all_data_vals])
         vmin = np.percentile(all_data_concat, 5)
         vmax = np.percentile(all_data_concat, 95)
         vmax_abs = max(abs(vmin), abs(vmax))
@@ -515,10 +684,10 @@ def generate_clustered_tfr_maps(
         
         logger.info(f"ROI TFR color scale: {vmin:.1f}% to {vmax:.1f}%")
         
-        # Helper for plotting
+        # Plotting Helper
         def plot_ax(ax, tfr_obj, title):
             im = ax.imshow(
-                tfr_obj.data[0, :, :], # 0 index because we averaged to 1 channel
+                tfr_obj.data[0, :, :],
                 aspect='auto', origin='lower',
                 extent=[tfr_obj.times[0], tfr_obj.times[-1], freqs[0], freqs[-1]],
                 cmap='RdBu_r', vmin=vmin, vmax=vmax
@@ -526,39 +695,44 @@ def generate_clustered_tfr_maps(
             ax.axvline(0, color='black', linestyle='--', linewidth=2)
             ax.axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
             ax.set_xlim(tmin, tmax)
-            ax.set_xlabel('Time (s)', fontsize=12, fontweight='bold')
-            ax.set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_ylabel('Freq (Hz)')
+            ax.set_title(title, fontsize=10, fontweight='bold')
             return im
 
-        # Row 1: Left Cluster
-        plot_ax(axes[0, 0], tfr_left_roi_L, 'Left Cluster - LEFT Hand')
-        plot_ax(axes[0, 1], tfr_right_roi_L, 'Left Cluster - RIGHT Hand (Contralateral)')
-        if tfr_nothing_roi_L:
-            plot_ax(axes[0, 2], tfr_nothing_roi_L, 'Left Cluster - NOTHING')
+        # Iterate and plot
+        # Order clusters nicely: Standard L/R, Frontal L/R, Parietal L/R
+        ordered_keys = [k for k in ['Standard_Motor_L', 'Standard_Motor_R', 'Frontal_Motor_L', 'Frontal_Motor_R', 'Parietal_Motor_L', 'Parietal_Motor_R'] if k in valid_clusters]
+        # Add any others not in order
+        for k in valid_clusters:
+            if k not in ordered_keys: ordered_keys.append(k)
+
+        for i, cluster_name in enumerate(ordered_keys):
+            row_res = results[cluster_name]
             
-        # Row 2: Right Cluster
-        plot_ax(axes[1, 0], tfr_left_roi_R, 'Right Cluster - LEFT Hand (Contralateral)')
-        im = plot_ax(axes[1, 1], tfr_right_roi_R, 'Right Cluster - RIGHT Hand')
-        if tfr_nothing_roi_R:
-             plot_ax(axes[1, 2], tfr_nothing_roi_R, 'Right Cluster - NOTHING')
-             
+            # Left Hand Col
+            plot_ax(axes[i, 0], row_res['LEFT_HAND'], f"{cluster_name}\nLEFT Hand")
+            
+            # Right Hand Col
+            im = plot_ax(axes[i, 1], row_res['RIGHT_HAND'], f"{cluster_name}\nRIGHT Hand")
+            
+            # Nothing Col
+            if nothing_cond:
+                 plot_ax(axes[i, 2], row_res['NOTHING'], f"{cluster_name}\nNOTHING")
+        
+        # Common labels
+        for ax in axes[-1, :]:
+            ax.set_xlabel('Time (s)')
+            
         # Colorbar
         cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
         cbar = fig.colorbar(im, cax=cbar_ax)
-        cbar.set_label('Power change (%)', fontsize=14, fontweight='bold')
+        cbar.set_label('Power change (%)', fontsize=12)
         
-        fig.suptitle('Time-Frequency Maps: Averaged Motor Clusters (ROI)', 
-                    fontsize=18, fontweight='bold', y=0.98)
-        fig.tight_layout(rect=[0, 0, 0.9, 0.96])
+        fig.suptitle('Exploratory TFR Maps: Multi-Region Analysis', fontsize=16, fontweight='bold', y=0.99)
+        fig.tight_layout(rect=[0, 0, 0.9, 0.98])
         
         # Save
-        filename = (
-            f"sub-{config.subject.id}_"
-            f"ses-{config.subject.session}_"
-            f"task-{config.subject.task}_"
-            f"desc-tfr_maps_roi.png"
-        )
+        filename = f"sub-{config.subject.id}_ses-{config.subject.session}_task-{config.subject.task}_desc-tfr_maps_roi.png"
         filepath = output_path / filename
         fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
         plt.close(fig)
@@ -645,8 +819,9 @@ def generate_erp_analysis(
                 data = data[:, 0, :]
                 
             # Compute stats across trials (axis 0)
-            mean_data = data.mean(axis=0) * 1e6 # Convert to uV
-            sem_data = sem(data, axis=0) * 1e6   # Convert to uV
+            # Unit conversion: V -> uV (or V/m² -> uV/m²)
+            mean_data = data.mean(axis=0) * 1e6
+            sem_data = sem(data, axis=0) * 1e6
             
             return mean_data, sem_data, epochs.times
             
@@ -685,7 +860,8 @@ def generate_erp_analysis(
             ax.axhline(0, color='gray', linestyle=':', linewidth=1)
             ax.set_xlim(tmin_plot, tmax_plot)
             ax.set_xlabel('Time (s)')
-            ax.set_ylabel('Amplitude (µV)')
+            unit_label = 'Amplitude (µV/m²)' if config.analysis.use_laplacian else 'Amplitude (µV)'
+            ax.set_ylabel(unit_label)
             ax.set_title(title, fontweight='bold')
             ax.legend(loc='upper right', fontsize=9)
             ax.grid(True, alpha=0.3)
@@ -1167,17 +1343,16 @@ def generate_csp_analysis(
         # =====================================================================
         # Create visualization figure
         # =====================================================================
-        fig = plt.figure(figsize=(16, 12))
+        fig = plt.figure(figsize=(16, 8))
         
-        # Layout: 3 rows
+        # Layout: 2 rows
         # Row 1: CSP spatial patterns (topoplots)
         # Row 2: Feature scatter plot + accuracy
-        # Row 3: CSP component time courses
         
         # Row 1: Topoplots of CSP patterns
         n_patterns_to_show = min(6, n_components)
         for idx in range(n_patterns_to_show):
-            ax = fig.add_subplot(3, n_patterns_to_show, idx + 1)
+            ax = fig.add_subplot(2, n_patterns_to_show, idx + 1)
             
             # Get pattern for this component
             pattern = csp_patterns[idx, :]
@@ -1201,8 +1376,8 @@ def generate_csp_analysis(
                 class_label = "LEFT"
             ax.set_title(f"CSP{idx}\n({class_label})", fontsize=11, fontweight='bold')
         
-        # Row 2: Feature scatter plot
-        ax_scatter = fig.add_subplot(3, 2, 3)
+        # Row 2 left: Feature scatter plot
+        ax_scatter = fig.add_subplot(2, 2, 3)
         
         # Plot first two CSP features
         left_mask = labels == 0
@@ -1225,7 +1400,7 @@ def generate_csp_analysis(
         ax_scatter.grid(True, alpha=0.3)
         
         # Row 2 right: Accuracy and metrics
-        ax_metrics = fig.add_subplot(3, 2, 4)
+        ax_metrics = fig.add_subplot(2, 2, 4)
         ax_metrics.axis('off')
         
         metrics_text = f"""
@@ -1257,48 +1432,11 @@ Interpretation:
                        fontsize=11, verticalalignment='top', fontfamily='monospace',
                        bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
         
-        # Row 3: CSP component time courses (averaged)
-        # Transform epochs to CSP space
-        csp_space = CSP(n_components=n_components, reg='ledoit_wolf', log=None,
-                       norm_trace=False, component_order='alternate',
-                       transform_into='csp_space')
-        csp_space.fit(data, labels)
-        data_csp = csp_space.transform(data)  # (trials, components, time)
-        
-        times = epochs_combined.times
-        
-        # Plot first 4 components
-        for comp_idx in range(min(4, n_components)):
-            ax = fig.add_subplot(3, 4, 9 + comp_idx)
-            
-            # Average across trials for each class
-            left_avg = data_csp[left_mask, comp_idx, :].mean(axis=0)
-            right_avg = data_csp[right_mask, comp_idx, :].mean(axis=0)
-            left_std = data_csp[left_mask, comp_idx, :].std(axis=0)
-            right_std = data_csp[right_mask, comp_idx, :].std(axis=0)
-            
-            ax.plot(times, left_avg, 'b-', linewidth=2, label='LEFT')
-            ax.fill_between(times, left_avg - left_std, left_avg + left_std, 
-                           color='blue', alpha=0.2)
-            ax.plot(times, right_avg, 'r-', linewidth=2, label='RIGHT')
-            ax.fill_between(times, right_avg - right_std, right_avg + right_std,
-                           color='red', alpha=0.2)
-            
-            ax.axvline(0, color='black', linestyle='--', linewidth=1.5)
-            ax.axvline(config.trials.task_duration_sec, color='black', 
-                      linestyle='--', linewidth=1.5, alpha=0.5)
-            ax.set_xlabel('Time (s)', fontsize=10)
-            ax.set_ylabel('Amplitude', fontsize=10)
-            ax.set_title(f'CSP{comp_idx} Time Course', fontsize=11, fontweight='bold')
-            if comp_idx == 0:
-                ax.legend(loc='best', fontsize=9)
-            ax.grid(True, alpha=0.3)
-        
         fig.suptitle(f'Common Spatial Patterns (CSP): LEFT vs RIGHT Hand Discrimination\n'
                     f'Subject {config.subject.id} | Session {config.subject.session}',
                     fontsize=16, fontweight='bold', y=0.995)
         fig.tight_layout(rect=[0, 0, 1, 0.97])
-        
+
         # Save figure
         filename = (
             f"sub-{config.subject.id}_"
@@ -1314,12 +1452,12 @@ Interpretation:
         
         # Prepare results dictionary
         results = {
-            'accuracy_mean': float(mean_accuracy) if not np.isnan(mean_accuracy) else None,
-            'accuracy_std': float(std_accuracy) if not np.isnan(std_accuracy) else None,
-            'n_left_trials': n_left,
-            'n_right_trials': n_right,
+            'accuracy': float(mean_accuracy) if not np.isnan(mean_accuracy) else None,
+            'std_accuracy': float(std_accuracy) if not np.isnan(std_accuracy) else None,
+            'n_trials_left': n_left,
+            'n_trials_right': n_right,
             'n_components': n_components,
-            'cv_folds': n_splits,
+            'n_folds': n_splits,
         }
         
         return filepath, results
@@ -2236,6 +2374,144 @@ def generate_cluster_topoplot(
         return None
 
 
+
+def generate_beta_topoplots(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate topographic maps of Beta band (13-30 Hz) power changes (ERD).
+    
+    Calculates the % power change in the Beta band relative to baseline for
+    LEFT and RIGHT conditions. Helps identify the spatial location of the
+    strongest ERD (the "motor hotspot").
+    
+    Args:
+        epochs: MNE Epochs object
+        output_path: Directory to save plot
+        config: SubjectConfig
+        
+    Returns:
+        Path to saved plot or None
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        logger.info("Generating Beta Band ERD Topoplots...")
+        
+        # Check conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        
+        if not (has_left and has_right):
+            logger.warning("Need LEFT and RIGHT conditions for Beta Topoplots")
+            return None
+            
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        
+        # Define frequency bands and windows
+        beta_freqs = np.arange(13, 31, 1)
+        tmin_base = config.analysis.baseline_window_start_sec
+        tmax_base = config.analysis.baseline_window_end_sec
+        tmin_task = 0.5 # Start slightly after onset to miss ERP
+        tmax_task = min(4.0, config.trials.task_duration_sec) 
+        
+        from mne.time_frequency import tfr_multitaper
+        
+        # Compute TFR for all channels
+        # We need TFR to get power over time, then average in time window
+        tfr = tfr_multitaper(
+            epochs,
+            freqs=beta_freqs,
+            n_cycles=beta_freqs/2.0,
+            use_fft=True,
+            return_itc=False,
+            average=True,
+            n_jobs=1
+        )
+        
+        # Apply baseline correction manually to get % change
+        # Get baseline power: average -5 to -2s (or config)
+        baseline_mask = (tfr.times >= tmin_base) & (tfr.times <= tmax_base)
+        baseline_power = np.mean(tfr.data[:, :, baseline_mask], axis=2, keepdims=True)
+        
+        # Get task power: average 0.5 to 4s
+        task_mask = (tfr.times >= tmin_task) & (tfr.times <= tmax_task)
+        # Power change = (Task - Base) / Base * 100
+        # tfr.data is (n_channels, n_freqs, n_times)
+        
+        # We need separate TFRs for LEFT and RIGHT to plot them separately
+        tfr_left = tfr_multitaper(epochs[left_cond], freqs=beta_freqs, n_cycles=beta_freqs/2.0, return_itc=False, average=True)
+        tfr_right = tfr_multitaper(epochs[right_cond], freqs=beta_freqs, n_cycles=beta_freqs/2.0, return_itc=False, average=True)
+        
+        # Calculate ERD% for each channel in Beta band
+        # 1. Average over frequencies (13-30 Hz)
+        # 2. Average over time (task window)
+        # 3. Normalize by baseline
+        
+        def get_beta_erd_topo(tfr_inst):
+            # Baseline power per channel (averaged over freq and time)
+            base_data = tfr_inst.data[:, :, baseline_mask] # (ch, freq, time)
+            base_mean = np.mean(base_data, axis=(1, 2)) # (ch,)
+            
+            # Task power per channel
+            task_data = tfr_inst.data[:, :, task_mask]
+            task_mean = np.mean(task_data, axis=(1, 2)) # (ch,)
+            
+            # Percent change (ERD is negative)
+            erd_percent = ((task_mean - base_mean) / base_mean) * 100
+            return erd_percent
+
+        erd_left = get_beta_erd_topo(tfr_left)
+        erd_right = get_beta_erd_topo(tfr_right)
+        
+        # Plotting
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        
+        # Color limits - find reasonable max
+        vmax = np.max(np.abs(np.concatenate([erd_left, erd_right])))
+        vmax = min(vmax, 50) # Cap at 50%
+        vmin = -vmax
+        
+        # LEFT Hand
+        im, _ = mne.viz.plot_topomap(
+            erd_left, epochs.info, axes=axes[0], show=False,
+            cmap='RdBu_r', vlim=(vmin, vmax), contours=0,
+            names=epochs.ch_names, show_names=True
+        )
+        axes[0].set_title('Beta ERD: LEFT Hand\n(Right Hemisphere Activation?', fontsize=14, fontweight='bold')
+        
+        # RIGHT Hand
+        im, _ = mne.viz.plot_topomap(
+            erd_right, epochs.info, axes=axes[1], show=False,
+            cmap='RdBu_r', vlim=(vmin, vmax), contours=0,
+            names=epochs.ch_names, show_names=True
+        )
+        axes[1].set_title('Beta ERD: RIGHT Hand\n(Left Hemisphere Activation?)', fontsize=14, fontweight='bold')
+        
+        # Colorbar
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+        fig.colorbar(im, cax=cbar_ax, label='Power Change (%)')
+        
+        fig.suptitle(f"Beta Band (13-30 Hz) Topography\nMean ERD [{tmin_task}s to {tmax_task}s]", fontsize=16, fontweight='bold')
+        
+        filename = f"sub-{config.subject.id}_ses-{config.subject.session}_task-{config.subject.task}_desc-beta_topoplot.png"
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"Beta topoplots saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to generate beta topoplots: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 def generate_clustered_psd_plots(
     epochs: mne.Epochs,
     output_path: Path,
@@ -2820,6 +3096,7 @@ def build_mne_objects(
     event_mapping = {
         "LEFT": 1,
         "RIGHT": 2,
+        "NOTHING": 3,
         "task_start": 10,
         "task_end": 11,
         "block_start": 20,
@@ -3931,12 +4208,16 @@ def run_eeg_analysis(
         ica_path = output_path / ica_filename
         ica.save(ica_path, overwrite=True)
         logger.info(f"ICA object saved to: {ica_path}")
+
         
         # Generate clustered PSD plots by hemisphere and condition
         logger.info("Generating clustered PSD plots by hemisphere...")
         left_psd_path, left_topo_path, right_psd_path, right_topo_path = generate_clustered_psd_plots(
             epochs, output_path, config
         )
+        
+        # Generate Beta Band ERD Topoplots (Exploratory)
+        beta_topo_path = generate_beta_topoplots(epochs, output_path, config)
         
         # Generate Time-Frequency Maps (most informative canonical plot)
         logger.info("Generating Time-Frequency Maps...")
@@ -4075,6 +4356,7 @@ def run_eeg_analysis(
         "csp_results": csp_results,
         "contralateral_timecourse_path": contralateral_timecourse_path,
         "contralateral_topoplot_path": contralateral_topoplot_path,
+        "beta_topo_path": beta_topo_path,
     }
 
 
@@ -4660,6 +4942,13 @@ def generate_visualizations(
         if left_psd_path and left_psd_path.exists():
             visualization_paths["eeg_psd_left"] = left_psd_path
             logger.info(f"Found left hemisphere PSD plot: {left_psd_path}")
+
+        # Add Beta Topoplot (Exploratory)
+        beta_topo_path = eeg_results.get("beta_topo_path")
+        if beta_topo_path and beta_topo_path.exists():
+            visualization_paths["eeg_beta_topoplot"] = beta_topo_path
+            logger.info(f"Found beta frequency topoplot: {beta_topo_path}")
+        
         
         if left_topo_path and left_topo_path.exists():
             visualization_paths["eeg_topo_left"] = left_topo_path
@@ -5127,6 +5416,42 @@ def save_full_report(
             mean_cv=0.0,
         )
 
+    # Create ClassificationMetrics from CSP results
+    classification_metrics = None
+    if eeg_results and eeg_results.get("csp_results"):
+        csp_data = eeg_results["csp_results"]
+        # Only create metrics if accuracy is available
+        if "accuracy" in csp_data and not np.isnan(csp_data["accuracy"]):
+            classification_metrics = ClassificationMetrics(
+                accuracy=float(csp_data["accuracy"]),
+                std_accuracy=float(csp_data.get("std_accuracy", 0.0) or 0.0),
+                n_folds=int(csp_data.get("n_folds", 5)),
+                n_trials_left=int(csp_data.get("n_trials_left", 0)),
+                n_trials_right=int(csp_data.get("n_trials_right", 0)),
+                method="CSP + LDA",
+                chance_level=0.5
+            )
+
+    # Save ClassificationMetrics to separate JSON if available
+    if classification_metrics:
+        try:
+            metrics_dict = {
+                "accuracy": classification_metrics.accuracy,
+                "std_accuracy": classification_metrics.std_accuracy,
+                "n_folds": classification_metrics.n_folds,
+                "n_trials_left": classification_metrics.n_trials_left,
+                "n_trials_right": classification_metrics.n_trials_right,
+                "method": classification_metrics.method,
+                "chance_level": classification_metrics.chance_level
+            }
+            metrics_filename = f"sub-{subject_id}_ses-{session_id}_task-{task}_desc-classification_metrics.json"
+            metrics_path = output_path / metrics_filename
+            with open(metrics_path, "w") as f:
+                json.dump(metrics_dict, f, indent=2)
+            logger.info(f"Classification metrics saved to: {metrics_path}")
+        except Exception as e:
+            logger.error(f"Failed to save classification metrics JSON: {e}")
+
     # Create ValidationResults
     validation_results = ValidationResults(
         subject_id=config.subject.id,
@@ -5149,6 +5474,7 @@ def save_full_report(
         experiment_qa=experiment_qa,
         lateralization_metrics=None,  # Not implemented in unified pipeline yet
         erd_metrics_c4=erd_metrics_c4,
+        classification_metrics=classification_metrics,
     )
 
     # Pass visualization paths directly (not loaded as figures)
@@ -5496,11 +5822,26 @@ def main() -> int:
                             logger.warning(f"ICA file not found: {ica_path}")
                             ica = None
                         
+                        # Apply Laplacian (CSD) referencing if enabled
+                        if config.analysis.use_laplacian:
+                            try:
+                                logger.info("Applying CSD (Laplacian) referencing...")
+                                # Automatically compute surface Laplacian using spherical spline interpolation
+                                # This requires electrode positions to be present
+                                epochs = mne.preprocessing.compute_current_source_density(epochs)
+                                logger.info("✓ CSD referencing applied (units converted to V/m²)")
+                            except Exception as e:
+                                logger.error(f"Failed to apply CSD referencing: {e}")
+                                # Continue without CSD if it fails
+                        
                         # Generate clustered PSD plots (if not already generated)
                         logger.info("Generating clustered PSD plots by hemisphere...")
                         left_psd_path, left_topo_path, right_psd_path, right_topo_path = generate_clustered_psd_plots(
                             epochs, output_path, config
                         )
+                        
+                        # Generate Beta Band ERD Topoplots (Exploratory)
+                        beta_topo_path = generate_beta_topoplots(epochs, output_path, config)
                         
                         # Generate Time-Frequency Maps (most informative canonical plot)
                         logger.info("Generating Time-Frequency Maps...")
@@ -5538,6 +5879,7 @@ def main() -> int:
                         eeg_results['contrast_analysis_path'] = contrast_analysis_path
                         eeg_results['csp_analysis_path'] = csp_analysis_path
                         eeg_results['csp_results'] = csp_results
+                        eeg_results['beta_topo_path'] = beta_topo_path
                         eeg_results['contralateral_timecourse_path'] = contralateral_timecourse_path
                         eeg_results['contralateral_topoplot_path'] = contralateral_topoplot_path
                         
