@@ -1,0 +1,117 @@
+# Configuration for sub-011: EEG-only analysis (Shorter trials)
+# Protocol: 48 trials LEFT, 48 trials RIGHT, 12 trials NOTHING.
+# Task: 5s, Rest: 5s.
+
+# Subject identification for BIDS compliance
+subject:
+  id: "011"
+  session: "001"
+  task: "fingertapping"
+
+# Modality configuration - EEG only (assuming similar to sub-010)
+modalities:
+  eeg_enabled: true
+  fnirs_enabled: false
+
+# Report options
+report:
+  qa_only: false
+
+# EEG channels of interest for ERD/ERS analysis
+eeg_channels_of_interest:
+  - "C3"
+  - "C4"
+
+# EEG preprocessing options
+eeg_preprocessing:
+  reference_channel: "Cz"
+  apply_car: true  # Apply CAR for dense array
+  ica_enabled: true
+
+# Trial structure
+trials:
+  count_per_condition: 48 # Using max value, actual counts: Left=48, Right=48, Nothing=12
+  task_duration_sec: 5.0
+  rest_duration_sec: 5.0
+
+# Filter configuration
+filters:
+  eeg_bandpass_low_hz: 1.0
+  eeg_bandpass_high_hz: 40.0
+  fnirs_bandpass_low_hz: 0.01
+  fnirs_bandpass_high_hz: 0.5
+  cardiac_band_low_hz: 0.5
+  cardiac_band_high_hz: 2.5
+
+# Quality thresholds
+quality:
+  sci_threshold: 0.75
+  cv_threshold_percent: 15.0
+  saturation_percent: 5.0
+  psp_threshold: 0.1
+  short_channel_distance_mm: 15.0
+
+# Epoch configuration
+epochs:
+  # Short epochs for 5s trials
+  # EEG: -3s baseline, 5s task, 5s rest (total 10s from onset). 
+  # Set tmax to 10.0 to capture full cycle.
+  eeg_tmin_sec: -3.0
+  eeg_tmax_sec: 10.0
+  
+  # fNIRS: Keep default logic or adjust? 
+  # If 5s task, HRF peak ~10s. 
+  # -3 to 25s captures overlapping response.
+  fnirs_tmin_sec: -3.0
+  fnirs_tmax_sec: 25.0
+  
+  # Baseline correction window
+  baseline_tmin_sec: -3.0
+  baseline_tmax_sec: -1.0
+
+# Analysis configuration
+analysis:
+  # Frequency bands
+  alpha_band_low_hz: 8.0
+  alpha_band_high_hz: 13.0
+  beta_band_low_hz: 13.0
+  beta_band_high_hz: 30.0
+  
+  # ERD time windows (adjusted for 5s trials)
+  baseline_window_start_sec: -3.0
+  baseline_window_end_sec: -1.0
+  
+  task_window_start_sec: 0.5
+  task_window_end_sec: 4.5  # Focus on core movement
+  
+  # Beta rebound window (post-task, i.e., > 5.0s)
+  # With 5s rest, rebound likely 5.5s - 9.0s
+  beta_rebound_window_start_sec: 5.5
+  beta_rebound_window_end_sec: 9.0
+  
+  # HRF validation windows (full canonical HRF)
+  hrf_onset_window_start_sec: 2.0
+  hrf_onset_window_end_sec: 3.0
+  hrf_peak_window_start_sec: 4.0
+  hrf_peak_window_end_sec: 8.0
+  
+  # DPF for Beer-Lambert
+  dpf: 6.0
+
+# ICA configuration
+ica:
+  enabled: true
+  n_components: 15
+  random_state: 42
+  max_iter: 200
+
+# Motion correction for fNIRS
+motion_correction:
+  method: tddr
+
+# Data paths
+data_root: data/raw
+output_root: data/derivatives/validation-pipeline
+
+# Random seed for reproducibility
+random_seed: 42

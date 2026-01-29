@@ -1,0 +1,303 @@
+{
+  "subject_id": "011",
+  "session_id": "001",
+  "task": "fingertapping",
+  "timestamp": "2026-01-30T00:40:47.726716",
+  "eeg_quality": {
+    "n_channels": 32,
+    "n_good": 0,
+    "n_fair": 4,
+    "n_poor": 28,
+    "channels": [
+      {
+        "channel_name": "Fp1",
+        "mean_correlation": 0.029584021949020455,
+        "signal_variance": 5.735062702009516e-13,
+        "amplitude_range_uv": 4.432615241967142,
+        "std_uv": 0.7573019676462961,
+        "quality_status": "fair",
+        "is_bad": false
+      },
+      {
+        "channel_name": "Fz",
+        "mean_correlation": -0.0344490541405646,
+        "signal_variance": 1.8545927920717567e-11,
+        "amplitude_range_uv": 16.058595065260306,
+        "std_uv": 4.306498336318913,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F3",
+        "mean_correlation": -0.04925648113949444,
+        "signal_variance": 2.9453675596667594e-11,
+        "amplitude_range_uv": 20.7973639589909,
+        "std_uv": 5.427124063135796,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F7",
+        "mean_correlation": -0.006700709057847404,
+        "signal_variance": 3.3996026899652817e-10,
+        "amplitude_range_uv": 65.92919817194343,
+        "std_uv": 18.438011525013433,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F9",
+        "mean_correlation": -0.005990623279169198,
+        "signal_variance": 1.8665458441990997e-10,
+        "amplitude_range_uv": 49.940920689550694,
+        "std_uv": 13.662158849168383,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "FC5",
+        "mean_correlation": 0.005635614344072853,
+        "signal_variance": 2.05224508438499e-12,
+        "amplitude_range_uv": 8.878419976099394,
+        "std_uv": 1.43256590926386,
+        "quality_status": "fair",
+        "is_bad": false
+      },
+      {
+        "channel_name": "FC1",
+        "mean_correlation": 0.022976191370077104,
+        "signal_variance": 6.850783453418429e-12,
+        "amplitude_range_uv": 12.981443433091044,
+        "std_uv": 2.6174001324632097,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "C3",
+        "mean_correlation": -0.04048981199753398,
+        "signal_variance": 1.2500231391143833e-11,
+        "amplitude_range_uv": 14.011718121764716,
+        "std_uv": 3.535566629430682,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "T7",
+        "mean_correlation": 0.017304607060120544,
+        "signal_variance": 1.057928372653e-11,
+        "amplitude_range_uv": 16.292477084789425,
+        "std_uv": 3.2525810868493346,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "CP5",
+        "mean_correlation": -0.007750638288595887,
+        "signal_variance": 2.6362459402254534e-10,
+        "amplitude_range_uv": 57.24023321818095,
+        "std_uv": 16.236520379149756,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "CP1",
+        "mean_correlation": 0.005243898979349995,
+        "signal_variance": 2.7879189273468688e-11,
+        "amplitude_range_uv": 23.38671765755862,
+        "std_uv": 5.280074741276746,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Pz",
+        "mean_correlation": -0.05051324747005052,
+        "signal_variance": 4.804709608179292e-11,
+        "amplitude_range_uv": 29.099608582328074,
+        "std_uv": 6.931601263906697,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P3",
+        "mean_correlation": -0.005527866756521662,
+        "signal_variance": 4.0062280047109144e-11,
+        "amplitude_range_uv": 23.905271518742666,
+        "std_uv": 6.32947707532851,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P7",
+        "mean_correlation": -0.045976387891583315,
+        "signal_variance": 2.088731191376252e-11,
+        "amplitude_range_uv": 20.63671672658529,
+        "std_uv": 4.570263877913673,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P9",
+        "mean_correlation": -0.03699516481901331,
+        "signal_variance": 2.220019851441001e-11,
+        "amplitude_range_uv": 17.185058823088184,
+        "std_uv": 4.711708661877346,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "O1",
+        "mean_correlation": -0.04149362727233607,
+        "signal_variance": 2.7736604575612732e-11,
+        "amplitude_range_uv": 21.075682752780267,
+        "std_uv": 5.266555285536527,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Oz",
+        "mean_correlation": 0.0010052388902982829,
+        "signal_variance": 5.7808702117774084e-11,
+        "amplitude_range_uv": 30.741211958229542,
+        "std_uv": 7.603203411574235,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "O2",
+        "mean_correlation": -0.007223236694932429,
+        "signal_variance": 2.6525525872135165e-10,
+        "amplitude_range_uv": 57.22997957491316,
+        "std_uv": 16.286658918309538,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P10",
+        "mean_correlation": -0.030831952777915915,
+        "signal_variance": 8.775589241076086e-12,
+        "amplitude_range_uv": 12.845703224684257,
+        "std_uv": 2.962362104989207,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P8",
+        "mean_correlation": 0.008834157543931135,
+        "signal_variance": 1.6588312961760985e-11,
+        "amplitude_range_uv": 18.43847712734714,
+        "std_uv": 4.072875269605121,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "P4",
+        "mean_correlation": -0.0033400671095804363,
+        "signal_variance": 2.2492293109768608e-10,
+        "amplitude_range_uv": 57.7163154957816,
+        "std_uv": 14.997430816566085,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "CP2",
+        "mean_correlation": -0.028995126782741985,
+        "signal_variance": 5.110764285789202e-12,
+        "amplitude_range_uv": 10.896481398958713,
+        "std_uv": 2.2606999548346085,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "CP6",
+        "mean_correlation": 0.018471515718622936,
+        "signal_variance": 9.233484631458021e-12,
+        "amplitude_range_uv": 16.039066395023838,
+        "std_uv": 3.0386649422827157,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "T8",
+        "mean_correlation": -0.04834274728475482,
+        "signal_variance": 5.0698190573464834e-11,
+        "amplitude_range_uv": 27.939940679289066,
+        "std_uv": 7.1202661869809925,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "C4",
+        "mean_correlation": -0.021357441660916656,
+        "signal_variance": 3.3893003740953947e-12,
+        "amplitude_range_uv": 8.839844667818397,
+        "std_uv": 1.8410052618326203,
+        "quality_status": "fair",
+        "is_bad": false
+      },
+      {
+        "channel_name": "Cz",
+        "mean_correlation": -0.014979267036394284,
+        "signal_variance": 1.6142111168404037e-10,
+        "amplitude_range_uv": 42.57031832821667,
+        "std_uv": 12.705160828735712,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "FC2",
+        "mean_correlation": -0.010143876146172407,
+        "signal_variance": 1.7926465394394812e-10,
+        "amplitude_range_uv": 46.7324280180037,
+        "std_uv": 13.388975089376636,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "FC6",
+        "mean_correlation": -0.030110722336834515,
+        "signal_variance": 5.1282840982254835e-12,
+        "amplitude_range_uv": 13.618162483908236,
+        "std_uv": 2.2645715043304517,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F10",
+        "mean_correlation": -0.059256589205088334,
+        "signal_variance": 1.597899965481055e-11,
+        "amplitude_range_uv": 18.283202734892257,
+        "std_uv": 3.9973740949291385,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F8",
+        "mean_correlation": -0.04785490433955072,
+        "signal_variance": 4.230198173860706e-11,
+        "amplitude_range_uv": 25.57470725150779,
+        "std_uv": 6.503997366128545,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "F4",
+        "mean_correlation": -0.01403000089212199,
+        "signal_variance": 1.4365089384435948e-10,
+        "amplitude_range_uv": 39.77880987804383,
+        "std_uv": 11.985445083281617,
+        "quality_status": "poor",
+        "is_bad": true
+      },
+      {
+        "channel_name": "Fp2",
+        "mean_correlation": 0.009344338758871983,
+        "signal_variance": 1.1284351968649712e-12,
+        "amplitude_range_uv": 5.634763510897756,
+        "std_uv": 1.0622783048076296,
+        "quality_status": "fair",
+        "is_bad": false
+      }
+    ]
+  },
+  "fnirs_quality": null
+}

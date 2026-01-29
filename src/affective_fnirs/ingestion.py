@@ -30,6 +30,7 @@ from typing import Any
 
 import numpy as np
 import pyxdf
+import logging
 
 
 class DataIngestionError(Exception):
@@ -250,22 +251,118 @@ def identify_streams(
                 break
 
         # Check Marker patterns (name or type)
+        # Collect all candidate marker streams
+        marker_candidates = []
         for pattern in marker_patterns:
             if pattern in stream_name or stream_type == "markers":
-                # Replace if we don't have one yet, or if this one has data and current doesn't
-                if "markers" not in identified:
-                    identified["markers"] = stream
-                elif has_data:
-                    # Check if current one is empty
-                    current_ts = identified["markers"]["time_series"]
-                    current_has_data = False
-                    if hasattr(current_ts, 'size'):
-                        current_has_data = current_ts.size > 0
-                    elif isinstance(current_ts, list):
-                        current_has_data = len(current_ts) > 0
-                    if not current_has_data:
-                        identified["markers"] = stream
+                marker_candidates.append(stream)
                 break
+        
+        # Merge into main list if found
+        if marker_candidates:
+            # We are inside the main stream loop, so 'stream' is the current candidate
+            # We need to collect ALL candidates first before deciding. 
+            # But this function structure iterates streams one by one.
+            # So we should add to a global list of candidates and process them AFTER the loop?
+            # actually, 'streams' is the list of all streams. 
+            # The current loop iterates `for stream in streams:`.
+            # So we can't easily collect all and then decide *inside* the loop efficiently without changing structure.
+            # But `identify_streams` returns a dict. We can store a list of candidates in the dict temporarily
+            # or better, just change the structure to process markers separately after the loop?
+            # The current structure tries to be single-pass.
+            # Let's collect candidates in a separate list defined outside the loop.
+            pass
+
+    # --- Marker Stream Selection (Post-Loop) ---
+    # To do this robustly, we need to iterate all streams again specifically for markers
+    # or rely on the previous loop to have collected them?
+    # The previous loop was `for stream in streams`.
+    # Let's rebuild the Loop to be safer, or just add a dedicated Marker pass.
+    
+    # We will do a dedicated pass for markers to ensure we see ALL candidates.
+    logger = logging.getLogger(__name__)
+    marker_candidates = []
+    
+    for stream in streams:
+        try:
+            s_name = stream["info"]["name"][0].lower()
+            s_type = stream["info"].get("type", [""])[0].lower()
+        except: continue
+        
+        is_marker = s_type == "markers"
+        if not is_marker:
+            for p in marker_patterns:
+                if p in s_name:
+                    is_marker = True
+                    break
+        
+        if is_marker:
+            marker_candidates.append(stream)
+
+    if marker_candidates:
+        best_stream = None
+        best_score = -1
+        best_details = {}
+        
+        logger.info(f"Evaluating {len(marker_candidates)} marker stream candidates...")
+        
+        for candidate in marker_candidates:
+            c_name = candidate["info"]["name"][0]
+            
+            # Check content
+            data_check = candidate.get('time_series', [])
+            if hasattr(data_check, 'size') and data_check.size == 0:
+                continue
+            if isinstance(data_check, list) and not data_check:
+                continue
+                
+            # Flatten and sample
+            flat_data = np.array(data_check).flatten()
+            sample_size = min(len(flat_data), 5000) # Check more samples to be safe
+            sample = [str(x) for x in flat_data[:sample_size]]
+            
+            # Score
+            score = 0
+            found_events = []
+            
+            # Critical events
+            if any('LEFT' in s for s in sample): 
+                score += 2
+                found_events.append('LEFT')
+            if any('RIGHT' in s for s in sample): 
+                score += 2
+                found_events.append('RIGHT')
+                
+            # Secondary events
+            if any('NOTHING' in s for s in sample): 
+                score += 1
+                found_events.append('NOTHING')
+            
+            # Tie breakers (Name preference)
+            # Preference: eeg_markers (hardware) > PsychoPy (software target) > others
+            name_lower = c_name.lower()
+            if 'eeg' in name_lower: score += 0.5
+            elif 'psychopy' in name_lower: score += 0.4
+            elif 'cortivision' in name_lower: score += 0.3
+            
+            logger.info(f"  Candidate '{c_name}': Score={score}, Events={found_events}")
+            
+            if score > best_score:
+                best_score = score
+                best_stream = candidate
+                best_details = {'name': c_name, 'events': found_events}
+        
+        if best_stream:
+            identified["markers"] = best_stream
+            logger.info(f"Selected marker stream: '{best_details['name']}' (Events: {best_details['events']})")
+            
+            if 'LEFT' not in best_details['events'] or 'RIGHT' not in best_details['events']:
+                 logger.warning("CRITICAL: Selected marker stream missing 'LEFT' or 'RIGHT' events! Analysis may fail.")
+            if 'NOTHING' not in best_details['events']:
+                 logger.warning("Warning: 'NOTHING' event not found in marker stream.")
+        else:
+            logger.warning("No valid marker stream with data found.")
+
 
     # Validate all required streams found (Req. 1.2, 1.3, 11.2)
     required_streams = ["eeg", "fnirs", "markers"]
