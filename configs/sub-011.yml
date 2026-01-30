@@ -78,8 +78,8 @@ analysis:
   beta_band_high_hz: 30.0
   
   # ERD time windows (adjusted for 5s trials)
-  baseline_window_start_sec: -3.0
-  baseline_window_end_sec: -1.0
+  baseline_window_start_sec: -2.5
+  baseline_window_end_sec: -0.5
   
   task_window_start_sec: 0.5
   task_window_end_sec: 4.5  # Focus on core movement

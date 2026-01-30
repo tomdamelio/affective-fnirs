@@ -239,6 +239,11 @@ def compute_tfr(
     # Apply baseline correction
     tfr.apply_baseline(baseline=baseline, mode=baseline_mode)
 
+    # Convert fraction to percentage if using percent mode
+    if baseline_mode == "percent":
+        tfr.data *= 100
+        logger.info("Converted TFR data from fraction to percentage (x100)")
+
     logger.info(
         f"TFR computed: {tfr.data.shape[0]} channels, "
         f"{tfr.data.shape[1]} frequencies, "

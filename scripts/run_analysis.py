@@ -188,7 +188,7 @@ def generate_tfr_maps(
         if config.analysis.tfr_view_tmin_sec is not None:
              tmin = config.analysis.tfr_view_tmin_sec
         else:
-             tmin = -1.0
+             tmin = config.analysis.baseline_window_end_sec
              
         if config.analysis.tfr_view_tmax_sec is not None:
              tmax = config.analysis.tfr_view_tmax_sec
@@ -222,9 +222,9 @@ def generate_tfr_maps(
         vmax_abs = max(abs(vmin), abs(vmax))
         vmin, vmax = -vmax_abs, vmax_abs
         
-        # Cap at reasonable limits (±30%) to avoid extreme outliers
-        vmin = max(vmin, -30)
-        vmax = min(vmax, 30)
+        # Cap at reasonable limits (±100%) to avoid extreme outliers
+        vmin = max(vmin, -100)
+        vmax = min(vmax, 100)
         
         logger.info(f"TFR color scale: {vmin:.1f}% to {vmax:.1f}%")
         
@@ -402,9 +402,11 @@ def generate_beta_topoplots(
         
         # Apply baseline correction
         tfr.apply_baseline(
-            (config.analysis.baseline_window_start_sec, config.analysis.baseline_window_end_sec),
             mode="percent"
         )
+        
+        # Manually convert to percentage since we used direct MNE call
+        tfr.data *= 100
         
         # Define window
         t_start = config.analysis.task_window_start_sec + 1.0
@@ -507,6 +509,10 @@ def generate_contralateral_erd_plots(
             # Baseline correct
             tfr_left.apply_baseline((config.analysis.baseline_window_start_sec, config.analysis.baseline_window_end_sec), mode="percent")
             tfr_right.apply_baseline((config.analysis.baseline_window_start_sec, config.analysis.baseline_window_end_sec), mode="percent")
+            
+            # Manually convert to percentage since we used direct MNE call
+            tfr_left.data *= 100
+            tfr_right.data *= 100
             
             # Subtract: LEFT - RIGHT
             tfr_diff = tfr_left.copy()
@@ -664,7 +670,7 @@ def generate_clustered_tfr_maps(
         if n_clusters == 1: axes = np.array([axes]) # Ensure 2D array
         
         # Time window
-        tmin = config.analysis.tfr_view_tmin_sec if config.analysis.tfr_view_tmin_sec is not None else -1.0
+        tmin = config.analysis.tfr_view_tmin_sec if config.analysis.tfr_view_tmin_sec is not None else config.analysis.baseline_window_end_sec
         tmax = config.analysis.tfr_view_tmax_sec if config.analysis.tfr_view_tmax_sec is not None else config.trials.task_duration_sec + 2.0
              
         # Determine color scale (global for comparison)
@@ -679,8 +685,8 @@ def generate_clustered_tfr_maps(
         vmax = np.percentile(all_data_concat, 95)
         vmax_abs = max(abs(vmin), abs(vmax))
         vmin, vmax = -vmax_abs, vmax_abs
-        vmin = max(vmin, -30) # Cap
-        vmax = min(vmax, 30)
+        vmin = max(vmin, -100) # Cap
+        vmax = min(vmax, 100)
         
         logger.info(f"ROI TFR color scale: {vmin:.1f}% to {vmax:.1f}%")
         
@@ -1265,13 +1271,31 @@ def generate_csp_analysis(
         
         logger.info("Running CSP analysis for LEFT vs RIGHT discrimination...")
         
+        # Optimize for CSP: Filter and Crop
+        logger.info("Optimizing data for CSP: 8-30Hz bandpass, 0.0-4.0s window")
+        
+        # Create a copy to avoid modifying original epochs
+        epochs_csp = epochs.copy()
+        
+        # 1. Filter to motor bands (Mu/Beta) where the ERD effect lives
+        # This removes delta/theta noise and visual evoked potentials
+        epochs_csp.filter(l_freq=8.0, h_freq=30.0, fir_design='firwin', skip_by_annotation='edge')
+        
+        # 2. Crop to the relevant task window
+        # User requested 0.0s to 4.0s (capturing onset and main movement)
+        epochs_csp.crop(tmin=0.0, tmax=4.0)
+        
+        # IMPORTANT: Reset baseline info to None after cropping
+        # This prevents ValueError when concatenating epochs (baseline interval no longer exists)
+        epochs_csp.baseline = None
+        
         # Get condition names
         left_cond = [c for c in conditions if 'LEFT' in c][0]
         right_cond = [c for c in conditions if 'RIGHT' in c][0]
         
         # Get epochs for each condition
-        epochs_left = epochs[left_cond]
-        epochs_right = epochs[right_cond]
+        epochs_left = epochs_csp[left_cond]
+        epochs_right = epochs_csp[right_cond]
         
         n_left = len(epochs_left)
         n_right = len(epochs_right)
@@ -3014,13 +3038,19 @@ def load_and_identify_streams(
                 result["fnirs"] = stream
                 logger.info(f"Found fNIRS stream: {stream['info']['name'][0]}")
 
-            # Check for Markers
+            # Check for Markers - EXPLICITLY prefer eeg_markers
             if any(
                 pattern in stream_name or stream_type == "markers"
                 for pattern in ["markers", "events", "trigger"]
             ):
-                result["markers"] = stream
-                logger.info(f"Found Markers stream: {stream['info']['name'][0]}")
+                # Prioritize eeg_markers by name (contains LEFT/RIGHT/NOTHING)
+                if "eeg_markers" in stream['info']['name'][0]:
+                    result["markers"] = stream
+                    logger.info(f"Found preferred marker stream: eeg_markers")
+                elif result["markers"] is None:
+                    # Only use non-eeg_markers if we haven't found anything yet
+                    result["markers"] = stream
+                    logger.info(f"Found Markers stream (fallback): {stream['info']['name'][0]}")
 
         # Log what we found
         found_streams = [k for k, v in result.items() if v is not None]
@@ -3139,6 +3169,11 @@ def build_mne_objects(
                 # Embed events
                 raw_eeg = embed_events(raw_eeg, streams["markers"], event_mapping)
                 logger.info(f"Embedded {len(raw_eeg.annotations)} events in EEG Raw")
+                if len(raw_eeg.annotations) > 0:
+                    logger.info(f"DEBUG: First 5 annotations: {raw_eeg.annotations[:5]}")
+                    logger.info(f"DEBUG: Annotation descriptions: {set(raw_eeg.annotations.description)}")
+                else:
+                    logger.warning("DEBUG: No annotations found in raw_eeg after embedding!")
 
             except (DataIngestionError, MNEConstructionError) as e:
                 logger.error(f"Failed to build EEG Raw object: {e}")
@@ -5021,8 +5056,10 @@ def generate_visualizations(
                     fig_path = output_path / fig_filename
 
                     # Create figure
+                    # Crop TFR for plotting (start from baseline end)
+                    tfr_plot = tfr.copy().crop(tmin=config.analysis.baseline_window_end_sec)
                     fig = plot_erd_timecourse_bilateral(
-                        tfr,
+                        tfr_plot,
                         alpha_band=(
                             config.analysis.alpha_band_low_hz,
                             config.analysis.alpha_band_high_hz,
@@ -5389,11 +5426,21 @@ def save_full_report(
     # Create ExperimentQA
     eeg_channel_quality_list = qa_results.get("eeg_channel_quality", [])
     
+    # Calculate actual trial counts
+    eeg_valid = 0
+    if eeg_results and "epochs" in eeg_results:
+        # Count epochs in the MNE object
+        eeg_valid = len(eeg_results["epochs"])
+    
+    fnirs_valid = 0
+    if fnirs_results and "epochs" in fnirs_results:
+        fnirs_valid = len(fnirs_results["epochs"])
+
     experiment_qa = ExperimentQA(
-        eeg_duration_sec=1145.5 if eeg_results else 0.0,  # Placeholder - could calculate from data
+        eeg_duration_sec=1145.5 if eeg_results else 0.0,  # Placeholder
         fnirs_duration_sec=1145.5 if fnirs_results else 0.0,
-        eeg_n_valid_trials=24 if eeg_results else 0,  # From epochs
-        fnirs_n_valid_trials=24 if fnirs_results else 0,
+        eeg_n_valid_trials=eeg_valid,
+        fnirs_n_valid_trials=fnirs_valid,
         eeg_expected_trials=config.trials.count_per_condition * 2,  # LEFT + RIGHT
         fnirs_expected_trials=config.trials.count_per_condition * 2,
         eeg_duration_complete=True if eeg_results else False,
@@ -5618,6 +5665,16 @@ def main() -> int:
             logger.info("=" * 70)
             streams = load_and_identify_streams(config)
             
+            # --- Marker Stream Selection Verification ---
+            if 'markers' in streams:
+                m_name = streams['markers']['info']['name'][0]
+                logger.info(f"VERIFICATION: Selected marker stream: '{m_name}'")
+                
+                if 'eeg_markers' in m_name:
+                    logger.info("✓ CONFIRMED: Using 'eeg_markers' stream as verified correct.")
+                else:
+                    logger.warning(f"⚠ NOTICE: Selected stream '{m_name}' is not 'eeg_markers'. Verify this is intended.")
+            # --------------------------------------------
         except FileNotFoundError as e:
             raise PipelineError(
                 stage="Data Loading",

@@ -1,54 +1,62 @@
 
 import pyxdf
 import numpy as np
-import logging
+import json
+import os
 
-def check_file(path, subj):
-    print(f"\n--- Checking {subj} ---")
-    print(f"File: {path}")
+def count_markers(path):
     try:
+        if not os.path.exists(path): return {"error": "File not found"}
         streams, header = pyxdf.load_xdf(path)
         
-        # Collect marker streams
-        candidates = []
+        counts = {"LEFT": 0, "RIGHT": 0, "NOTHING": 0}
+        target_stream_name = "eeg_markers"
+        found_stream = None
+        
+        # specific search for eeg_markers
         for s in streams:
             try:
                 name = s['info']['name'][0]
-                stype = s['info']['type'][0]
-                if stype == 'Markers' or 'marker' in name.lower() or 'event' in name.lower():
-                    candidates.append(s)
+                if name == target_stream_name:
+                    found_stream = s
+                    break
             except: pass
-            
-        print(f"Found {len(candidates)} marker candidates.")
         
-        for c in candidates:
-            name = c['info']['name'][0]
-            data = c.get('time_series', [])
-            
-            # Check content
-            events_found = []
-            if len(data) > 0:
-                flat = np.array(data).flatten()
-                 # check first 5000
-                sample = [str(x) for x in flat[:5000]]
-                
-                if any('LEFT' in s for s in sample): events_found.append('LEFT')
-                if any('RIGHT' in s for s in sample): events_found.append('RIGHT')
-                if any('NOTHING' in s for s in sample): events_found.append('NOTHING')
-            
-            if events_found:
-                print(f"  [MATCH] Stream: '{name}' -> Events: {events_found}")
-            else:
-                print(f"  [EMPTY] Stream: '{name}' -> No events or no match")
-                
+        if not found_stream:
+            # Fallback check if simple search failed (sometimes names have whitespace?)
+            for s in streams:
+                 try: 
+                    if target_stream_name in s['info']['name'][0]:
+                        found_stream = s
+                        break
+                 except: pass
+        
+        if not found_stream:
+            return {"error": f"Stream '{target_stream_name}' not found"}
+
+        data = found_stream.get('time_series', [])
+        if len(data) > 0:
+            flat = np.array(data).flatten()
+            # Convert all to string once
+            for x in flat:
+                s = str(x)
+                if 'LEFT' in s: counts["LEFT"] += 1
+                elif 'RIGHT' in s: counts["RIGHT"] += 1
+                elif 'NOTHING' in s: counts["NOTHING"] += 1
+        
+        return counts
     except Exception as e:
-        print(f"Error: {e}")
+        return {"error": str(e)}
 
 if __name__ == "__main__":
-    files = [
-        ("sub-009", "data/raw/sub-009/ses-001/sub-009_ses-001_task-fingertapping_recording.xdf"),
-        ("sub-010", "data/raw/sub-010/ses-001/sub-010_ses-001_task-fingertapping_recording.xdf"),
-        ("sub-011", "data/raw/sub-011/ses-001/sub-011_ses-001_task-fingertapping_recording.xdf"),
-    ]
-    for subj, path in files:
-        check_file(path, subj)
+    files = {
+        "sub-009": "data/raw/sub-009/ses-001/sub-009_ses-001_task-fingertapping_recording.xdf",
+        "sub-010": "data/raw/sub-010/ses-001/sub-010_ses-001_task-fingertapping_recording.xdf",
+        "sub-011": "data/raw/sub-011/ses-001/sub-011_ses-001_task-fingertapping_recording.xdf",
+    }
+    
+    results = {}
+    for subj, path in files.items():
+        results[subj] = count_markers(path)
+        
+    print(json.dumps(results, indent=2))

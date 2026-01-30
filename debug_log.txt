@@ -1,0 +1,10 @@
+INFO:debug_csp:Added to sys.path: C:\Users\tdamelio\Desktop\fnirs\affective-fnirs\src
+INFO:debug_csp:Loading config from configs/sub-011.yml
+Traceback (most recent call last):
+  File "C:\Users\tdamelio\Desktop\fnirs\affective-fnirs\scripts\debug_csp.py", line 27, in main
+    config = SubjectConfig.from_yaml(config_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\tdamelio\Desktop\fnirs\affective-fnirs\src\affective_fnirs\config.py", line 613, in from_yaml
+    if not file_path.exists():
+           ^^^^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute 'exists'

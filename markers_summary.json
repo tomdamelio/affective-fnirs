@@ -1,0 +1,47 @@
+{
+  "sub-009": {
+    "cortivision_markers_mirror": [],
+    "PsychoPy_Markers": [],
+    "cortivision_markers": [
+      "LEFT",
+      "RIGHT",
+      "NOTHING"
+    ],
+    "eeg_markers": [
+      "LEFT",
+      "RIGHT",
+      "NOTHING"
+    ],
+    "actiCHampMarkers-24020270": []
+  },
+  "sub-010": {
+    "cortivision_markers_mirror": [],
+    "eeg_markers": [
+      "LEFT",
+      "RIGHT",
+      "NOTHING"
+    ],
+    "cortivision_markers": [
+      "LEFT",
+      "RIGHT",
+      "NOTHING"
+    ],
+    "PsychoPy_Markers": [],
+    "actiCHampMarkers-24020270": []
+  },
+  "sub-011": {
+    "PsychoPy_Markers": [],
+    "cortivision_markers": [
+      "LEFT",
+      "RIGHT",
+      "NOTHING"
+    ],
+    "eeg_markers": [
+      "LEFT",
+      "RIGHT",
+      "NOTHING"
+    ],
+    "actiCHampMarkers-24020270": [],
+    "Game_Markers": []
+  }
+}
