@@ -2,7 +2,7 @@
   "subject_id": "011",
   "session_id": "001",
   "task": "fingertapping",
-  "timestamp": "2026-01-30T11:04:40.061647",
+  "timestamp": "2026-01-30T11:39:40.998428",
   "eeg_quality": {
     "n_channels": 32,
     "n_good": 0,

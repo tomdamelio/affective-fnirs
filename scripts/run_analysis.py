@@ -82,6 +82,7 @@ from affective_fnirs.fnirs_quality import (
 )
 from affective_fnirs.bids_utils import generate_derivative_path
 from affective_fnirs.eeg_processing import preprocess_eeg_pipeline
+from mne.preprocessing import compute_current_source_density
 from affective_fnirs.fnirs_processing import process_fnirs_pipeline
 from affective_fnirs.eeg_analysis import compute_tfr, detect_erd_ers
 from affective_fnirs.fnirs_analysis import create_fnirs_epochs, extract_hrf
@@ -1276,6 +1277,15 @@ def generate_csp_analysis(
         
         # Create a copy to avoid modifying original epochs
         epochs_csp = epochs.copy()
+        
+        # Apply Surface Laplacian (CSD)
+        # CSD acts as a high-pass spatial filter, reducing volume conduction and sharpening focal motor activity
+        logger.info("Applying Surface Laplacian (CSD) to epochs")
+        try:
+            epochs_csp = compute_current_source_density(epochs_csp)
+            logger.info("Surface Laplacian (CSD) applied successfully")
+        except Exception as e:
+            logger.warning(f"Failed to apply Surface Laplacian (CSD): {e}. Proceeding without CSD.")
         
         # 1. Filter to motor bands (Mu/Beta) where the ERD effect lives
         # This removes delta/theta noise and visual evoked potentials
