@@ -5932,6 +5932,10 @@ def main() -> int:
                             epochs, output_path, config
                         )
                         
+                        # Generate ERP Analysis (Evoked Potentials)
+                        logger.info("Generating ERP Analysis...")
+                        erp_analysis_path = generate_erp_analysis(epochs, output_path, config)
+                        
                         # Now run TFR and ERD/ERS analysis on loaded epochs
                         logger.info("Running EEG analysis on loaded epochs (TFR + ERD/ERS)...")
                         eeg_results = run_eeg_analysis_from_epochs(epochs, processed_eeg, config, output_path)
@@ -5949,6 +5953,7 @@ def main() -> int:
                         eeg_results['beta_topo_path'] = beta_topo_path
                         eeg_results['contralateral_timecourse_path'] = contralateral_timecourse_path
                         eeg_results['contralateral_topoplot_path'] = contralateral_topoplot_path
+                        eeg_results['erp_analysis_path'] = erp_analysis_path
                         
                         logger.info(
                             f"✓ EEG analysis complete: "
