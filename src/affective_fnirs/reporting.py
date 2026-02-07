@@ -941,6 +941,41 @@ def generate_validation_report_html(
                 """
                 report.add_html(csp_analysis_html, title="1.0.3.4 CSP Analysis")
     
+    # 1.0.3.5: CSP Analysis (MOV vs NO MOV discrimination)
+    if "eeg_csp_mov_vs_rest" in figures and figures["eeg_csp_mov_vs_rest"] is not None:
+        import base64
+        from pathlib import Path
+        
+        csp_mov_value = figures["eeg_csp_mov_vs_rest"]
+        if isinstance(csp_mov_value, (str, Path)):
+            csp_mov_path = Path(csp_mov_value)
+            
+            if csp_mov_path.exists():
+                with open(csp_mov_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                
+                csp_mov_html = f"""
+                <div style="page-break-inside: avoid; margin: 20px 0;">
+                    <h3>1.0.3.5 Common Spatial Patterns (CSP): MOV vs NO MOV Discrimination</h3>
+                    <p style="margin: 10px 0; color: #555; font-size: 14px;">
+                        <strong>CSP Analysis for Movement State Detection</strong>
+                        <br><br>
+                        Discriminates between <strong>Movement (LEFT + RIGHT)</strong> and <strong>No Movement (NOTHING)</strong> conditions.
+                        <br><br>
+                        <strong>Interpretation:</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
+                            <li><strong>Goal:</strong> Identify global motor network activation patterns distinct from resting state.</li>
+                            <li><strong>Topoplots:</strong> Spatial filters maximizing variance for Movement vs Rest.</li>
+                            <li><strong>Scatter:</strong> Separation of active (Mov) vs inactive (No Mov) states in feature space.</li>
+                        </ul>
+                    </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="CSP MOV vs NO MOV Analysis">
+                </div>
+                """
+                report.add_html(csp_mov_html, title="1.0.3.5 CSP MOV vs NO MOV")
+    
     # 1.0.4: Contralateral ERD/ERS Timecourse
     if "eeg_contralateral_timecourse" in figures and figures["eeg_contralateral_timecourse"] is not None:
         import base64

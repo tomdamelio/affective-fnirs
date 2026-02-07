@@ -223,7 +223,7 @@ def generate_tfr_maps(
         vmax_abs = max(abs(vmin), abs(vmax))
         vmin, vmax = -vmax_abs, vmax_abs
         
-        # Cap at reasonable limits (±100%) to avoid extreme outliers
+        # Cap at reasonable limits (+/-100%) to avoid extreme outliers
         vmin = max(vmin, -100)
         vmax = min(vmax, 100)
         
@@ -826,7 +826,7 @@ def generate_erp_analysis(
                 data = data[:, 0, :]
                 
             # Compute stats across trials (axis 0)
-            # Unit conversion: V -> uV (or V/m² -> uV/m²)
+            # Unit conversion: V -> uV (or V/m^2 -> uV/m^2)
             mean_data = data.mean(axis=0) * 1e6
             sem_data = sem(data, axis=0) * 1e6
             
@@ -867,7 +867,7 @@ def generate_erp_analysis(
             ax.axhline(0, color='gray', linestyle=':', linewidth=1)
             ax.set_xlim(tmin_plot, tmax_plot)
             ax.set_xlabel('Time (s)')
-            unit_label = 'Amplitude (µV/m²)' if config.analysis.use_laplacian else 'Amplitude (µV)'
+            unit_label = 'Amplitude (uV/m^2)' if config.analysis.use_laplacian else 'Amplitude (uV)'
             ax.set_ylabel(unit_label)
             ax.set_title(title, fontweight='bold')
             ax.legend(loc='upper right', fontsize=9)
@@ -894,7 +894,7 @@ def generate_erp_analysis(
         if right_indices:
              plot_erp_comparison(axes[1, 1], right_indices, 'Right Cluster ROI Average', roi_mode=True)
              
-        fig.suptitle(f'Event-Related Potentials (ERP): Mean ± SEM\nSubject {config.subject.id}', 
+        fig.suptitle(f'Event-Related Potentials (ERP): Mean +/- SEM\nSubject {config.subject.id}', 
                     fontsize=16, fontweight='bold', y=0.98)
         fig.tight_layout(rect=[0, 0, 1, 0.96])
         
@@ -1232,8 +1232,8 @@ def generate_csp_analysis(
     CSP extracts spatial filters that capture lateralized motor cortex activity.
     
     Scientific rationale:
-        - CSP finds spatial filters W such that Var(W·X_class1) is maximized
-          while Var(W·X_class2) is minimized
+        - CSP finds spatial filters W such that Var(W*X_class1) is maximized
+          while Var(W*X_class2) is minimized
         - For LEFT vs RIGHT hand movement, CSP should find filters emphasizing
           contralateral motor cortex (C3 for RIGHT, C4 for LEFT)
         - The resulting spatial patterns reveal the topography of discriminative activity
@@ -1368,7 +1368,7 @@ def generate_csp_analysis(
             scores = cross_val_score(clf, data, labels, cv=cv, scoring='accuracy')
             mean_accuracy = scores.mean()
             std_accuracy = scores.std()
-            logger.info(f"CSP+LDA CV Accuracy: {mean_accuracy:.1%} ± {std_accuracy:.1%}")
+            logger.info(f"CSP+LDA CV Accuracy: {mean_accuracy:.1%} +/- {std_accuracy:.1%}")
         else:
             mean_accuracy = np.nan
             std_accuracy = np.nan
@@ -1439,28 +1439,32 @@ def generate_csp_analysis(
         
         metrics_text = f"""
 CSP Analysis Results
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+----------------------------------------
 
 Classification: LEFT vs RIGHT hand
 
 Trials:
-  • LEFT:  {n_left} trials
-  • RIGHT: {n_right} trials
-  • Total: {n_left + n_right} trials
+
+  * LEFT:  {n_left} trials
+  * RIGHT: {n_right} trials
+  * Total: {n_left + n_right} trials
+
+
+
 
 CSP Configuration:
-  • Components: {n_components}
-  • Ordering: Alternate (class-balanced)
-  • Features: Log-variance
+  * Components: {n_components}
+  * Ordering: Alternate (class-balanced)
+  * Features: Log-variance
 
 Cross-Validation ({n_splits}-fold):
-  • Accuracy: {mean_accuracy:.1%} ± {std_accuracy:.1%}
-  • Chance level: 50%
+  * Accuracy: {mean_accuracy:.1%} +/- {std_accuracy:.1%}
+  * Chance level: 50%
 
 Interpretation:
-  • CSP0, CSP2, CSP4: Maximize RIGHT variance
-  • CSP1, CSP3, CSP5: Maximize LEFT variance
-  • Spatial patterns show discriminative topography
+  * CSP0, CSP2, CSP4: Maximize RIGHT variance
+  * CSP1, CSP3, CSP5: Maximize LEFT variance
+  * Spatial patterns show discriminative topography
 """
         ax_metrics.text(0.1, 0.95, metrics_text, transform=ax_metrics.transAxes,
                        fontsize=11, verticalalignment='top', fontfamily='monospace',
@@ -1506,8 +1510,188 @@ Interpretation:
         return None, {}
 
 
-# =============================================================================
-# fNIRS ANALYSIS FUNCTIONS
+
+def generate_csp_movement_vs_rest(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> tuple[Optional[Path], dict]:
+    """
+    Apply CSP to discriminate MOVEMENT (Left+Right) vs NO MOVEMENT (Nothing).
+
+    Scientific rationale:
+        - Detects global motor network activation vs resting state.
+        - Spatial filters should emphasize motor cortex (C3/C4/FCz) vs occipital/parietal alpha.
+
+    Args:
+        epochs: MNE Epochs with LEFT, RIGHT, and NOTHING conditions
+        output_path: Directory to save outputs
+        config: SubjectConfig with subject information
+
+    Returns:
+        Tuple of (figure_path, results_dict)
+    """
+    logger = logging.getLogger(__name__)
+
+    try:
+        from mne.decoding import CSP
+        from sklearn.model_selection import cross_val_score, StratifiedKFold
+        from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+        from sklearn.pipeline import Pipeline
+
+        # Check conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        has_nothing = any('NOTHING' in cond for cond in conditions)
+
+        if not (has_left and has_right and has_nothing):
+            logger.warning("Need LEFT, RIGHT, and NOTHING conditions for MOV vs NO MOV CSP analysis")
+            return None, {}
+
+        logger.info("Running CSP analysis for MOVEMENT vs NO MOVEMENT discrimination...")
+
+        # Optimize for CSP: Filter and Crop
+        epochs_csp = epochs.copy()
+
+        # Apply Surface Laplacian (CSD) if available
+        try:
+            epochs_csp = compute_current_source_density(epochs_csp)
+        except Exception as e:
+            logger.warning(f"Failed to apply CSD (likely no montage): {e}")
+
+        # Filter to motor bands
+        epochs_csp.filter(l_freq=8.0, h_freq=30.0, fir_design='firwin', skip_by_annotation='edge')
+        epochs_csp.crop(tmin=0.0, tmax=4.0)
+        epochs_csp.baseline = None
+
+        # Get condition names
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        nothing_cond = [c for c in conditions if 'NOTHING' in c][0]
+
+        # Get epochs
+        epochs_mov = mne.concatenate_epochs([epochs_csp[left_cond], epochs_csp[right_cond]])
+        epochs_rest = epochs_csp[nothing_cond]
+
+        n_mov = len(epochs_mov)
+        n_rest = len(epochs_rest)
+        logger.info(f"MOVEMENT trials: {n_mov}, NO MOVEMENT trials: {n_rest}")
+
+        # Balance classes slightly if imbalance is extreme (> 2:1)
+        # For now, we'll use all data but rely on StratifiedKFold and LDA's robustness.
+        # Ideally, we might downsample the majority class, but let's keep all data for power.
+
+        # Labels: 0 = NO MOVEMENT, 1 = MOVEMENT
+        epochs_combined = mne.concatenate_epochs([epochs_rest, epochs_mov])
+        labels = np.array([0] * n_rest + [1] * n_mov)
+
+        data = epochs_combined.get_data()
+        
+        # CSP Analysis
+        n_components = min(6, min(n_mov, n_rest) * 2 - 2)
+        n_components = max(2, n_components)
+
+        csp = CSP(
+            n_components=n_components,
+            reg='ledoit_wolf',
+            log=True,
+            norm_trace=False,
+            component_order='alternate', # 0->Class 0 (Rest), 1->Class 1 (Mov)
+        )
+
+        csp.fit(data, labels)
+        csp_patterns = csp.patterns_
+        csp_features = csp.transform(data)
+
+        # Cross-validation
+        min_class_size = min(n_mov, n_rest)
+        n_splits = min(5, min_class_size)
+        
+        if n_splits >= 2:
+            cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=config.random_seed)
+            clf = Pipeline([('csp', csp), ('lda', LinearDiscriminantAnalysis())])
+            scores = cross_val_score(clf, data, labels, cv=cv, scoring='accuracy')
+            mean_accuracy = scores.mean()
+            std_accuracy = scores.std()
+        else:
+            mean_accuracy = np.nan
+            std_accuracy = np.nan
+
+        # Plotting
+        fig = plt.figure(figsize=(16, 8))
+        
+        # Topoplots
+        n_patterns_to_show = min(6, n_components)
+        for idx in range(n_patterns_to_show):
+            ax = fig.add_subplot(2, n_patterns_to_show, idx + 1)
+            pattern = csp_patterns[idx, :]
+            mne.viz.plot_topomap(pattern, epochs_combined.info, axes=ax, show=False, contours=0)
+            
+            # Label: Alternate order
+            # Index 0, 2, 4 -> Class 0 (NO MOV)
+            # Index 1, 3, 5 -> Class 1 (MOV)
+            if idx % 2 == 0:
+                class_label = "NO MOV"
+            else:
+                class_label = "MOV"
+            ax.set_title(f"CSP{idx}\n({class_label})", fontsize=11, fontweight='bold')
+
+        # Scatter
+        ax_scatter = fig.add_subplot(2, 2, 3)
+        rest_mask = labels == 0
+        mov_mask = labels == 1
+        
+        ax_scatter.scatter(csp_features[rest_mask, 0], csp_features[rest_mask, 1],
+                           c='green', s=50, alpha=0.6, label='NO MOV', edgecolors='black')
+        ax_scatter.scatter(csp_features[mov_mask, 0], csp_features[mov_mask, 1],
+                           c='purple', s=50, alpha=0.6, label='MOV', edgecolors='black')
+        ax_scatter.set_xlabel('CSP Feature 0', fontweight='bold')
+        ax_scatter.set_ylabel('CSP Feature 1', fontweight='bold')
+        ax_scatter.legend()
+        ax_scatter.grid(True, alpha=0.3)
+
+        # Metrics
+        ax_metrics = fig.add_subplot(2, 2, 4)
+        ax_metrics.axis('off')
+        metrics_text = f"""
+CSP Analysis (MOV vs NO MOV)
+--------------------------------
+
+Accuracy: {mean_accuracy:.1%} +/- {std_accuracy:.1%}
+(Chance: {(n_mov/(n_mov+n_rest)):.1%} / {(n_rest/(n_mov+n_rest)):.1%})
+
+Trials:
+  * MOV: {n_mov}
+  * NO MOV: {n_rest}
+        """
+        ax_metrics.text(0.1, 0.5, metrics_text, fontsize=12, va='center', fontfamily='monospace')
+        
+        fig.suptitle(f'CSP Analysis: Movement vs No Movement\nSubject {config.subject.id}', 
+                     fontsize=16, fontweight='bold', y=0.98)
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        filename = f"sub-{config.subject.id}_ses-{config.subject.session}_task-{config.subject.task}_desc-csp_mov_vs_rest.png"
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        results = {
+            "accuracy": mean_accuracy,
+            "std_accuracy": std_accuracy,
+            "n_trials_mov": n_mov,
+            "n_trials_rest": n_rest,
+            "method": "CSP + LDA"
+        }
+        
+        return filepath, results
+
+    except Exception as e:
+        logger.error(f"Failed to generate MOV vs NO MOV CSP analysis: {e}")
+        return None, {}
+
+
+
 # =============================================================================
 
 def generate_fnirs_hrf_by_condition(
@@ -2560,7 +2744,7 @@ def generate_clustered_psd_plots(
     3. Right hemisphere PSD
     4. Right hemisphere topoplot
     
-    Each PSD plot shows mean PSD ± SEM for each condition (LEFT, RIGHT, NOTHING).
+    Each PSD plot shows mean PSD +/- SEM for each condition (LEFT, RIGHT, NOTHING).
     Each topoplot shows the electrode cluster highlighted.
     
     Args:
@@ -4095,7 +4279,7 @@ def run_eeg_analysis(
         logger.info("  3. Bad epochs will be excluded BEFORE ICA fitting")
         logger.info("  4. This improves ICA decomposition quality")
         logger.info("  5. Look for:")
-        logger.info("     - Extreme amplitudes (>100 µV)")
+        logger.info("     - Extreme amplitudes (>100 uV)")
         logger.info("     - Movement artifacts (sudden jumps)")
         logger.info("     - Very noisy epochs")
         logger.info("  6. Close the window when done to continue")
@@ -4558,9 +4742,10 @@ def run_eeg_analysis_from_epochs(
             "No ERD/ERS results computed. Check channel names and data quality."
         )
 
-    logger.info(
-        f"EEG analysis complete: {len(erd_ers_results)} channels analyzed"
-    )
+                        logger.info(
+                            f"SUCCESS: EEG analysis complete: "
+                            f"{len(eeg_results['erd_ers_results'])} channels analyzed"
+                        )
 
     # Generate ERP Analysis
     erp_analysis_path = generate_erp_analysis(epochs, output_path, config)
@@ -5036,6 +5221,12 @@ def generate_visualizations(
         if csp_analysis_path and csp_analysis_path.exists():
             visualization_paths["eeg_csp_analysis"] = csp_analysis_path
             logger.info(f"Found CSP Analysis: {csp_analysis_path}")
+
+        # Add CSP Analysis (MOV vs NO MOV) if it exists
+        csp_mov_vs_rest_path = eeg_results.get("csp_mov_vs_rest_path")
+        if csp_mov_vs_rest_path and csp_mov_vs_rest_path.exists():
+            visualization_paths["eeg_csp_mov_vs_rest"] = csp_mov_vs_rest_path
+            logger.info(f"Found CSP Analysis (MOV vs NO MOV): {csp_mov_vs_rest_path}")
 
         # Add Clustered TFR Maps (ROI) if they exist
         tfr_maps_roi_path = eeg_results.get("tfr_maps_roi_path")
@@ -5788,7 +5979,7 @@ def main() -> int:
                     if preprocessed_eeg_path.exists():
                         logger.info(f"Loading preprocessed EEG from: {preprocessed_eeg_path}")
                         processed_eeg = mne.io.read_raw_fif(preprocessed_eeg_path, preload=True)
-                        logger.info(f"✓ Loaded preprocessed EEG: {len(processed_eeg.ch_names)} channels")
+                        logger.info(f"SUCCESS: Loaded preprocessed EEG: {len(processed_eeg.ch_names)} channels")
                     else:
                         logger.error(f"Preprocessed EEG file not found: {preprocessed_eeg_path}")
                         raise FileNotFoundError(f"Preprocessed EEG not found: {preprocessed_eeg_path}")
@@ -5806,7 +5997,7 @@ def main() -> int:
                     if preprocessed_fnirs_path.exists():
                         logger.info(f"Loading preprocessed fNIRS from: {preprocessed_fnirs_path}")
                         processed_fnirs = mne.io.read_raw_fif(preprocessed_fnirs_path, preload=True)
-                        logger.info(f"✓ Loaded preprocessed fNIRS: {len(processed_fnirs.ch_names)} channels")
+                        logger.info(f"SUCCESS: Loaded preprocessed fNIRS: {len(processed_fnirs.ch_names)} channels")
                     else:
                         logger.warning(f"Preprocessed fNIRS file not found: {preprocessed_fnirs_path}")
                 
@@ -5820,14 +6011,14 @@ def main() -> int:
 
                 # Log what was successfully preprocessed
                 if processed_eeg is not None:
-                    logger.info(f"✓ EEG preprocessed: {len(processed_eeg.ch_names)} channels")
+                    logger.info(f"SUCCESS: EEG preprocessed: {len(processed_eeg.ch_names)} channels")
                 else:
-                    logger.info("✗ EEG preprocessing not available")
+                    logger.info("FAILURE: EEG preprocessing not available")
 
                 if processed_fnirs is not None:
-                    logger.info(f"✓ fNIRS preprocessed: {len(processed_fnirs.ch_names)} channels")
+                    logger.info(f"SUCCESS: fNIRS preprocessed: {len(processed_fnirs.ch_names)} channels")
                 else:
-                    logger.info("✗ fNIRS preprocessing not available")
+                    logger.info("FAILURE: fNIRS preprocessing not available")
                 
         except Exception as e:
             raise PipelineError(
@@ -5878,13 +6069,13 @@ def main() -> int:
                         
                         logger.info(f"Loading cleaned epochs from: {epochs_path}")
                         epochs = mne.read_epochs(epochs_path, preload=True)
-                        logger.info(f"✓ Loaded {len(epochs)} cleaned epochs")
+                        logger.info(f"SUCCESS: Loaded {len(epochs)} cleaned epochs")
                         
                         # Load ICA (optional, for reference)
                         if ica_path.exists():
                             logger.info(f"Loading ICA object from: {ica_path}")
                             ica = mne.preprocessing.read_ica(ica_path)
-                            logger.info(f"✓ Loaded ICA with {ica.n_components_} components")
+                            logger.info(f"SUCCESS: Loaded ICA with {ica.n_components_} components")
                         else:
                             logger.warning(f"ICA file not found: {ica_path}")
                             ica = None
@@ -5896,7 +6087,7 @@ def main() -> int:
                                 # Automatically compute surface Laplacian using spherical spline interpolation
                                 # This requires electrode positions to be present
                                 epochs = mne.preprocessing.compute_current_source_density(epochs)
-                                logger.info("✓ CSD referencing applied (units converted to V/m²)")
+                                logger.info("SUCCESS: CSD referencing applied (units converted to V/m^2)")
                             except Exception as e:
                                 logger.error(f"Failed to apply CSD referencing: {e}")
                                 # Continue without CSD if it fails
@@ -5926,6 +6117,10 @@ def main() -> int:
                         logger.info("Generating CSP Analysis...")
                         csp_analysis_path, csp_results = generate_csp_analysis(epochs, output_path, config)
                         
+                        # Generate CSP Analysis (MOV vs NO MOV discrimination)
+                        logger.info("Generating CSP Analysis (MOV vs NO MOV)...")
+                        csp_mov_vs_rest_path, csp_mov_results = generate_csp_movement_vs_rest(epochs, output_path, config)
+                        
                         # Generate contralateral ERD/ERS plots
                         logger.info("Generating contralateral ERD/ERS plots...")
                         contralateral_timecourse_path, contralateral_topoplot_path = generate_contralateral_erd_plots(
@@ -5950,21 +6145,34 @@ def main() -> int:
                         eeg_results['contrast_analysis_path'] = contrast_analysis_path
                         eeg_results['csp_analysis_path'] = csp_analysis_path
                         eeg_results['csp_results'] = csp_results
+                        eeg_results['csp_mov_vs_rest_path'] = csp_mov_vs_rest_path
+                        eeg_results['csp_mov_results'] = csp_mov_results
                         eeg_results['beta_topo_path'] = beta_topo_path
                         eeg_results['contralateral_timecourse_path'] = contralateral_timecourse_path
                         eeg_results['contralateral_topoplot_path'] = contralateral_topoplot_path
                         eeg_results['erp_analysis_path'] = erp_analysis_path
                         
                         logger.info(
-                            f"✓ EEG analysis complete: "
+                            f"SUCCESS: EEG analysis complete: "
                             f"{len(eeg_results['erd_ers_results'])} channels analyzed"
                         )
                     else:
                         # Normal flow: run full EEG analysis (epoching + ICA + TFR + ERD/ERS)
                         logger.info("Running EEG analysis...")
                         eeg_results = run_eeg_analysis(processed_eeg, config, output_path)
+                        
+                        # Generate CSP Analysis (MOV vs NO MOV) - Logic duplicated for normal flow because run_eeg_analysis might not have the new function yet
+                        # Need to get epochs from eeg_results
+                        if eeg_results and 'epochs' in eeg_results:
+                             logger.info("Generating CSP Analysis (MOV vs NO MOV) for normal flow...")
+                             csp_mov_vs_rest_path_norm, csp_mov_results_norm = generate_csp_movement_vs_rest(
+                                 eeg_results['epochs'], output_path, config
+                             )
+                             eeg_results['csp_mov_vs_rest_path'] = csp_mov_vs_rest_path_norm
+                             eeg_results['csp_mov_results'] = csp_mov_results_norm
+                        
                         logger.info(
-                            f"✓ EEG analysis complete: "
+                            f"SUCCESS: EEG analysis complete: "
                             f"{len(eeg_results['erd_ers_results'])} channels analyzed"
                         )
                 except Exception as e:
