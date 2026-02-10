@@ -1604,19 +1604,31 @@ def generate_csp_movement_vs_rest(
         csp_patterns = csp.patterns_
         csp_features = csp.transform(data)
 
-        # Cross-validation
+        # Cross-validation with both accuracy and balanced accuracy
         min_class_size = min(n_mov, n_rest)
         n_splits = min(5, min_class_size)
         
         if n_splits >= 2:
             cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=config.random_seed)
             clf = Pipeline([('csp', csp), ('lda', LinearDiscriminantAnalysis())])
+            
+            # Regular accuracy (for reference)
             scores = cross_val_score(clf, data, labels, cv=cv, scoring='accuracy')
             mean_accuracy = scores.mean()
             std_accuracy = scores.std()
+            
+            # Balanced accuracy (proper metric for imbalanced classes)
+            bal_scores = cross_val_score(clf, data, labels, cv=cv, scoring='balanced_accuracy')
+            mean_balanced_accuracy = bal_scores.mean()
+            std_balanced_accuracy = bal_scores.std()
+            
+            logger.info(f"CSP+LDA CV Accuracy: {mean_accuracy:.1%} ± {std_accuracy:.1%}")
+            logger.info(f"CSP+LDA CV Balanced Accuracy: {mean_balanced_accuracy:.1%} ± {std_balanced_accuracy:.1%}")
         else:
             mean_accuracy = np.nan
             std_accuracy = np.nan
+            mean_balanced_accuracy = np.nan
+            std_balanced_accuracy = np.nan
 
         # Plotting
         fig = plt.figure(figsize=(16, 8))
@@ -1654,18 +1666,29 @@ def generate_csp_movement_vs_rest(
         # Metrics
         ax_metrics = fig.add_subplot(2, 2, 4)
         ax_metrics.axis('off')
+        
+        # Calculate class imbalance ratio for display
+        imbalance_ratio = max(n_mov, n_rest) / min(n_mov, n_rest)
+        
         metrics_text = f"""
 CSP Analysis (MOV vs NO MOV)
 --------------------------------
 
-Accuracy: {mean_accuracy:.1%} +/- {std_accuracy:.1%}
-(Chance: {(n_mov/(n_mov+n_rest)):.1%} / {(n_rest/(n_mov+n_rest)):.1%})
+BALANCED ACCURACY: {mean_balanced_accuracy:.1%} +/- {std_balanced_accuracy:.1%}
+(Chance level: 50%)
+
+Regular Accuracy: {mean_accuracy:.1%} +/- {std_accuracy:.1%}
+(Chance: {(n_mov/(n_mov+n_rest)):.1%})
 
 Trials:
   * MOV: {n_mov}
   * NO MOV: {n_rest}
+  * Imbalance: {imbalance_ratio:.1f}:1
+
+Note: Balanced accuracy properly
+handles class imbalance.
         """
-        ax_metrics.text(0.1, 0.5, metrics_text, fontsize=12, va='center', fontfamily='monospace')
+        ax_metrics.text(0.05, 0.5, metrics_text, fontsize=11, va='center', fontfamily='monospace')
         
         fig.suptitle(f'CSP Analysis: Movement vs No Movement\nSubject {config.subject.id}', 
                      fontsize=16, fontweight='bold', y=0.98)
@@ -1679,8 +1702,11 @@ Trials:
         results = {
             "accuracy": mean_accuracy,
             "std_accuracy": std_accuracy,
+            "balanced_accuracy": mean_balanced_accuracy,
+            "std_balanced_accuracy": std_balanced_accuracy,
             "n_trials_mov": n_mov,
             "n_trials_rest": n_rest,
+            "imbalance_ratio": imbalance_ratio,
             "method": "CSP + LDA"
         }
         
@@ -4568,7 +4594,7 @@ def run_eeg_analysis(
         )
 
     logger.info(
-        f"EEG analysis complete: {len(erd_ers_results)} channels analyzed"
+        f"SUCCESS: EEG analysis complete: {len(erd_ers_results)} channels analyzed"
     )
 
     return {
@@ -4741,11 +4767,6 @@ def run_eeg_analysis_from_epochs(
         logger.warning(
             "No ERD/ERS results computed. Check channel names and data quality."
         )
-
-                        logger.info(
-                            f"SUCCESS: EEG analysis complete: "
-                            f"{len(eeg_results['erd_ers_results'])} channels analyzed"
-                        )
 
     # Generate ERP Analysis
     erp_analysis_path = generate_erp_analysis(epochs, output_path, config)
@@ -6164,12 +6185,12 @@ def main() -> int:
                         # Generate CSP Analysis (MOV vs NO MOV) - Logic duplicated for normal flow because run_eeg_analysis might not have the new function yet
                         # Need to get epochs from eeg_results
                         if eeg_results and 'epochs' in eeg_results:
-                             logger.info("Generating CSP Analysis (MOV vs NO MOV) for normal flow...")
-                             csp_mov_vs_rest_path_norm, csp_mov_results_norm = generate_csp_movement_vs_rest(
-                                 eeg_results['epochs'], output_path, config
-                             )
-                             eeg_results['csp_mov_vs_rest_path'] = csp_mov_vs_rest_path_norm
-                             eeg_results['csp_mov_results'] = csp_mov_results_norm
+                            logger.info("Generating CSP Analysis (MOV vs NO MOV) for normal flow...")
+                            csp_mov_vs_rest_path_norm, csp_mov_results_norm = generate_csp_movement_vs_rest(
+                                eeg_results['epochs'], output_path, config
+                            )
+                            eeg_results['csp_mov_vs_rest_path'] = csp_mov_vs_rest_path_norm
+                            eeg_results['csp_mov_results'] = csp_mov_results_norm
                         
                         logger.info(
                             f"SUCCESS: EEG analysis complete: "
