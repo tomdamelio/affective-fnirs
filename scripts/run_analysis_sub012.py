@@ -68,8 +68,12 @@ def synthesize_nothing_annotations(raw: mne.io.Raw, task_duration: float = 10.0,
         onset = sorted_onsets[i]
         
         if desc in ['LEFT', 'RIGHT']:
-            # NOTHING starts after task finishes
-            task_end = onset + task_duration
+            # NOTHING starts after task finishes + 1 second (to allow for -1s baseline)
+            # This creates a "virtual onset" at T+1s.
+            # Epoch window (-1, 7) relative to this virtual onset will capture:
+            # - Baseline: (T+1-1) to (T+1+0) = T to T+1 (First 1s of rest)
+            # - Activity: (T+1+0) to (T+1+7) = T+1 to T+8 (Next 7s of rest)
+            nothing_virtual_onset = task_end + 1.0
             
             # Find next trial onset to calculate available rest
             next_trial_onset = None
@@ -79,15 +83,25 @@ def synthesize_nothing_annotations(raw: mne.io.Raw, task_duration: float = 10.0,
                     break
             
             if next_trial_onset:
-                available_rest = next_trial_onset - task_end
-                duration = min(available_rest, rest_duration_cap)
+                # Available rest starts at task_end
+                # We need nothing_virtual_onset + 7s to be within available rest
+                # end_of_nothing = nothing_virtual_onset + 7.0 = task_end + 8.0
+                # So we need available_rest >= 8.0
+                available_rest_duration = next_trial_onset - task_end
+                
+                # If we have enough rest for the full 8s window (1s baseline + 7s data)
+                if available_rest_duration >= (rest_duration_cap + 1.0):
+                     duration = rest_duration_cap # Duration of the annotation itself doesn't strictly matter for discrete epochs, but good for visualization
+                else:
+                     # Truncate if not enough rest (unlikely given design, but safe)
+                     duration = max(0, available_rest_duration - 1.0)
             else:
-                # Last trial, use full cap
+                # Last trial, assume sufficient rest
                 duration = rest_duration_cap
             
             # Only add if we have a valid positive duration
-            if duration > 0.5: # At least 0.5s of rest
-                new_onsets.append(task_end)
+            if duration >= rest_duration_cap: # Strict requirement for full epoch
+                new_onsets.append(nothing_virtual_onset)
                 new_durations.append(duration)
                 new_descriptions.append('NOTHING')
             
@@ -205,7 +219,6 @@ def main():
         else:
             logger.warning("run_fnirs_analysis function not found in main_pipeline")
 
-    if eeg_results:
         # Run CSP (LEFT vs RIGHT)
         # Note: This function requires 'epochs' in eeg_results
         logger.info("Running CSP Analysis (LEFT vs RIGHT)...")
@@ -225,35 +238,43 @@ def main():
         epochs = eeg_results['epochs']
         viz_paths = {}
         
+        # Add CSP paths to viz_paths for report generation
+        if 'csp_analysis_path' in eeg_results and eeg_results['csp_analysis_path']:
+             viz_paths['eeg_csp_analysis'] = eeg_results['csp_analysis_path']
+        if 'csp_mov_vs_rest_path' in eeg_results and eeg_results['csp_mov_vs_rest_path']:
+             viz_paths['eeg_csp_mov_vs_rest'] = eeg_results['csp_mov_vs_rest_path']
+
         # TFR Maps (shows LEFT, RIGHT, NOTHING in separate columns)
         logger.info("Generating TFR maps...")
         tfr_path = main_pipeline.generate_tfr_maps(epochs, output_path, config)
         if tfr_path:
-            viz_paths['tfr_maps'] = tfr_path
+            viz_paths['eeg_tfr_maps'] = tfr_path
         
         # ERP Analysis (shows all 3 conditions)
         logger.info("Generating ERP analysis...")
         erp_path = main_pipeline.generate_erp_analysis(epochs, output_path, config)
         if erp_path:
-            viz_paths['erp_analysis'] = erp_path
+            viz_paths['eeg_erp_analysis'] = erp_path
         
         # Clustered TFR Maps
         logger.info("Generating clustered TFR maps...")
         clustered_tfr_path = main_pipeline.generate_clustered_tfr_maps(epochs, output_path, config)
         if clustered_tfr_path:
-            viz_paths['clustered_tfr'] = clustered_tfr_path
+            viz_paths['eeg_tfr_maps_roi'] = clustered_tfr_path
         
         # Beta Topoplots
         logger.info("Generating beta topoplots...")
         beta_topo_path = main_pipeline.generate_beta_topoplots(epochs, output_path, config)
         if beta_topo_path:
-            viz_paths['beta_topoplot'] = beta_topo_path
+            viz_paths['eeg_beta_topoplot'] = beta_topo_path
         
         # Contralateral ERD plots
         logger.info("Generating contralateral ERD plots...")
         contralat_timecourse, contralat_topo = main_pipeline.generate_contralateral_erd_plots(epochs, output_path, config)
         if contralat_topo:
-            viz_paths['contralateral_topoplot'] = contralat_topo
+            viz_paths['eeg_contralateral_topoplot'] = contralat_topo
+        if contralat_timecourse:
+            viz_paths['eeg_contralateral_timecourse'] = contralat_timecourse
         
         # fNIRS Visualizations
         if fnirs_results and 'epochs' in fnirs_results:
@@ -276,7 +297,8 @@ def main():
             logger.info("Generating fNIRS contrast map...")
             contrast_path = main_pipeline.generate_fnirs_contrast_map(fnirs_epochs, output_path, config)
             if contrast_path:
-                viz_paths['fnirs_contrast_map'] = contrast_path
+                viz_paths['fnirs_contrast'] = contrast_path
+
     else:
         logger.error("EEG Analysis failed to produce results.")
         viz_paths = {}
