@@ -1,0 +1,476 @@
+Inspecting run_analysis module...
+generate_contralateral_erd_plots in functions: True
+generate_erp_analysis in functions: True
+generate_visualizations in functions: True
+
+Source of generate_contralateral_erd_plots:
+def generate_contralateral_erd_plots(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> tuple[Optional[Path], Optional[Path]]:
+    """
+    Generate classic ERD/ERS plots showing contralateral desynchronization.
+    
+    Creates two plots:
+    1. ERD/ERS timecourse for LEFT vs RIGHT hand movement in C3 and C4
+    2. Topoplots showing ERD/ERS spatial distribution during task
+    
+    This shows the classic effect: C3 desynchronizes during RIGHT hand movement,
+    C4 desynchronizes during LEFT hand movement (contralateral control).
+    
+    Args:
+        epochs: MNE Epochs object with condition information
+        output_path: Directory to save plots
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Tuple of (timecourse_path, topoplot_path) or (None, None) if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Check if we have LEFT and RIGHT conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        
+        if not (has_left and has_right):
+            logger.warning("Need both LEFT and RIGHT conditions for contralateral ERD plots")
+            return None, None
+        
+        # Check if C3 and C4 are available
+        if 'C3' not in epochs.ch_names or 'C4' not in epochs.ch_names:
+            logger.warning("Need C3 and C4 channels for contralateral ERD plots")
+            return None, None
+        
+        logger.info("Generating contralateral ERD/ERS plots...")
+        
+        # Compute TFR for each condition
+        from affective_fnirs.eeg_analysis import compute_tfr
+        
+        freqs = np.arange(8, 31, 1)  # Focus on alpha (8-13 Hz) and beta (13-30 Hz)
+        
+        # Get LEFT, RIGHT, and NOTHING epochs
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        nothing_cond = [c for c in conditions if 'NOTHING' in c][0] if any('NOTHING' in c for c in conditions) else None
+        
+        epochs_left = epochs[left_cond]
+        epochs_right = epochs[right_cond]
+        epochs_nothing = epochs[nothing_cond] if nothing_cond else None
+        
+        logger.info(f"Computing TFR for LEFT condition ({len(epochs_left)} epochs)...")
+        tfr_left = compute_tfr(
+            epochs_left,
+            freqs=freqs,
+            n_cycles=7.0,
+            baseline=(config.analysis.baseline_window_start_sec,
+                     config.analysis.baseline_window_end_sec),
+            baseline_mode="percent",
+        )
+        
+        logger.info(f"Computing TFR for RIGHT condition ({len(epochs_right)} epochs)...")
+        tfr_right = compute_tfr(
+            epochs_right,
+            freqs=freqs,
+            n_cycles=7.0,
+            baseline=(config.analysis.baseline_window_start_sec,
+                     config.analysis.baseline_window_end_sec),
+            baseline_mode="percent",
+        )
+        
+        tfr_nothing = None
+        if epochs_nothing is not None and len(epochs_nothing) > 0:
+            logger.info(f"Computing TFR for NOTHING condition ({len(epochs_nothing)} epochs)...")
+            tfr_nothing = compute_tfr(
+                epochs_nothing,
+                freqs=freqs,
+                n_cycles=7.0,
+                baseline=(config.analysis.baseline_window_start_sec,
+                         config.analysis.baseline_window_end_sec),
+                baseline_mode="percent",
+            )
+        
+        # =====================================================================
+        # Plot 1: ERD/ERS Timecourse (C3 and C4 for LEFT vs RIGHT)
+        # =====================================================================
+        fig, axes = plt.subplots(2, 2, figsize=(20, 16))
+        
+        # Define frequency bands
+        alpha_band = (config.analysis.alpha_band_low_hz, config.analysis.alpha_band_high_hz)
+        beta_band = (config.analysis.beta_band_low_hz, config.analysis.beta_band_high_hz)
+        
+        # Helper function to extract band power timecourse
+        def extract_band_power(tfr, channel, freq_band):
+            ch_idx = tfr.ch_names.index(channel)
+            freq_mask = (tfr.freqs >= freq_band[0]) & (tfr.freqs <= freq_band[1])
+            # Average across frequency band
+            band_power = tfr.data[ch_idx, freq_mask, :].mean(axis=0)
+            return band_power
+        
+        # C3 Alpha - LEFT vs RIGHT vs NOTHING
+        ax = axes[0, 0]
+        c3_alpha_left = extract_band_power(tfr_left, 'C3', alpha_band)
+        c3_alpha_right = extract_band_power(tfr_right, 'C3', alpha_band)
+        ax.plot(tfr_left.times, c3_alpha_left, linewidth=3, label='LEFT hand', color='#1f77b4')
+        ax.plot(tfr_right.times, c3_alpha_right, linewidth=3, label='RIGHT hand (contralateral)', color='#ff7f0e')
+        if tfr_nothing is not None:
+            c3_alpha_nothing = extract_band_power(tfr_nothing, 'C3', alpha_band)
+            ax.plot(tfr_nothing.times, c3_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
+        ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Power change (%)', fontsize=14, fontweight='bold')
+        ax.set_title(f'C3 Alpha ERD ({alpha_band[0]}-{alpha_band[1]} Hz)', fontsize=16, fontweight='bold')
+        ax.legend(fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=12)
+        
+        # C4 Alpha - LEFT vs RIGHT vs NOTHING
+        ax = axes[0, 1]
+        c4_alpha_left = extract_band_power(tfr_left, 'C4', alpha_band)
+        c4_alpha_right = extract_band_power(tfr_right, 'C4', alpha_band)
+        ax.plot(tfr_left.times, c4_alpha_left, linewidth=3, label='LEFT hand (contralateral)', color='#1f77b4')
+        ax.plot(tfr_right.times, c4_alpha_right, linewidth=3, label='RIGHT hand', color='#ff7f0e')
+        if tfr_nothing is not None:
+            c4_alpha_nothing = extract_band_power(tfr_nothing, 'C4', alpha_band)
+            ax.plot(tfr_nothing.times, c4_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
+        ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Power change (%)', fontsize=14, fontweight='bold')
+        ax.set_title(f'C4 Alpha ERD ({alpha_band[0]}-{alpha_band[1]} Hz)', fontsize=16, fontweight='bold')
+        ax.legend(fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=12)
+        
+        # C3 Beta - LEFT vs RIGHT vs NOTHING
+        ax = axes[1, 0]
+        c3_beta_left = extract_band_power(tfr_left, 'C3', beta_band)
+        c3_beta_right = extract_band_power(tfr_right, 'C3', beta_band)
+        ax.plot(tfr_left.times, c3_beta_left, linewidth=3, label='LEFT hand', color='#1f77b4')
+        ax.plot(tfr_right.times, c3_beta_right, linewidth=3, label='RIGHT hand (contralateral)', color='#ff7f0e')
+        if tfr_nothing is not None:
+            c3_beta_nothing = extract_band_power(tfr_nothing, 'C3', beta_band)
+            ax.plot(tfr_nothing.times, c3_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
+        ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Power change (%)', fontsize=14, fontweight='bold')
+        ax.set_title(f'C3 Beta ERD ({beta_band[0]}-{beta_band[1]} Hz)', fontsize=16, fontweight='bold')
+        ax.legend(fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=12)
+        
+        # C4 Beta - LEFT vs RIGHT vs NOTHING
+        ax = axes[1, 1]
+        c4_beta_left = extract_band_power(tfr_left, 'C4', beta_band)
+        c4_beta_right = extract_band_power(tfr_right, 'C4', beta_band)
+        ax.plot(tfr_left.times, c4_beta_left, linewidth=3, label='LEFT hand (contralateral)', color='#1f77b4')
+        ax.plot(tfr_right.times, c4_beta_right, linewidth=3, label='RIGHT hand', color='#ff7f0e')
+        if tfr_nothing is not None:
+            c4_beta_nothing = extract_band_power(tfr_nothing, 'C4', beta_band)
+            ax.plot(tfr_nothing.times, c4_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
+        ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
+        ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
+        ax.set_xlabel('Time (s)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Power change (%)', fontsize=14, fontweight='bold')
+        ax.set_title(f'C4 Beta ERD ({beta_band[0]}-{beta_band[1]} Hz)', fontsize=16, fontweight='bold')
+        ax.legend(fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=12)
+        
+        fig.suptitle('Contralateral ERD/ERS: Motor Cortex Desynchronization', 
+                    fontsize=18, fontweight='bold', y=0.995)
+        fig.tight_layout()
+        
+        # Save timecourse plot
+        timecourse_filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-contralateral_erd_timecourse.png"
+        )
+        timecourse_path = output_path / timecourse_filename
+        fig.savefig(str(timecourse_path), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info(f"Contralateral ERD timecourse saved to: {timecourse_path}")
+        
+        # =====================================================================
+        # Plot 2: Topoplots showing ERD/ERS spatial distribution
+        # =====================================================================
+        fig, axes = plt.subplots(2, 4, figsize=(24, 12))
+        
+        # Time window during task (e.g., 2-4 seconds after onset)
+        task_tmin = 2.0
+        task_tmax = 4.0
+        
+        # Helper function to compute average power in time window
+        def compute_topomap_data(tfr, freq_band, tmin, tmax):
+            freq_mask = (tfr.freqs >= freq_band[0]) & (tfr.freqs <= freq_band[1])
+            time_mask = (tfr.times >= tmin) & (tfr.times <= tmax)
+            # Average across frequency and time
+            data = tfr.data[:, freq_mask, :][:, :, time_mask].mean(axis=(1, 2))
+            return data
+        
+        # LEFT hand - Alpha
+        data_left_alpha = compute_topomap_data(tfr_left, alpha_band, task_tmin, task_tmax)
+        vmin_la = np.percentile(data_left_alpha, 5)
+        vmax_la = np.percentile(data_left_alpha, 95)
+        im, _ = mne.viz.plot_topomap(data_left_alpha, tfr_left.info, axes=axes[0, 0],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_la, vmax_la),
+                                     contours=6, sensors=True)
+        axes[0, 0].set_title(f'LEFT hand\nAlpha ({alpha_band[0]}-{alpha_band[1]} Hz)', 
+                            fontsize=14, fontweight='bold')
+        
+        # LEFT hand - Beta
+        data_left_beta = compute_topomap_data(tfr_left, beta_band, task_tmin, task_tmax)
+        vmin_lb = np.percentile(data_left_beta, 5)
+        vmax_lb = np.percentile(data_left_beta, 95)
+        im, _ = mne.viz.plot_topomap(data_left_beta, tfr_left.info, axes=axes[0, 1],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_lb, vmax_lb),
+                                     contours=6, sensors=True)
+        axes[0, 1].set_title(f'LEFT hand\nBeta ({beta_band[0]}-{beta_band[1]} Hz)', 
+                            fontsize=14, fontweight='bold')
+        
+        # RIGHT hand - Alpha
+        data_right_alpha = compute_topomap_data(tfr_right, alpha_band, task_tmin, task_tmax)
+        vmin_ra = np.percentile(data_right_alpha, 5)
+        vmax_ra = np.percentile(data_right_alpha, 95)
+        im, _ = mne.viz.plot_topomap(data_right_alpha, tfr_right.info, axes=axes[0, 2],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_ra, vmax_ra),
+                                     contours=6, sensors=True)
+        axes[0, 2].set_title(f'RIGHT hand\nAlpha ({alpha_band[0]}-{alpha_band[1]} Hz)', 
+                            fontsize=14, fontweight='bold')
+        
+        # RIGHT hand - Beta
+        data_right_beta = compute_topomap_data(tfr_right, beta_band, task_tmin, task_tmax)
+        vmin_rb = np.percentile(data_right_beta, 5)
+        vmax_rb = np.percentile(data_right_beta, 95)
+        im, _ = mne.viz.plot_topomap(data_right_beta, tfr_right.info, axes=axes[0, 3],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_rb, vmax_rb),
+                                     contours=6, sensors=True)
+        axes[0, 3].set_title(f'RIGHT hand\nBeta ({beta_band[0]}-{beta_band[1]} Hz)', 
+                            fontsize=14, fontweight='bold')
+        
+        # Contrast: LEFT - RIGHT (shows contralateral effect)
+        contrast_alpha = data_left_alpha - data_right_alpha
+        vmin_ca = np.percentile(contrast_alpha, 5)
+        vmax_ca = np.percentile(contrast_alpha, 95)
+        im, _ = mne.viz.plot_topomap(contrast_alpha, tfr_left.info, axes=axes[1, 0],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_ca, vmax_ca),
+                                     contours=6, sensors=True)
+        axes[1, 0].set_title('LEFT - RIGHT\nAlpha (contralateral effect)', 
+                            fontsize=14, fontweight='bold')
+        
+        contrast_beta = data_left_beta - data_right_beta
+        vmin_cb = np.percentile(contrast_beta, 5)
+        vmax_cb = np.percentile(contrast_beta, 95)
+        im, _ = mne.viz.plot_topomap(contrast_beta, tfr_left.info, axes=axes[1, 1],
+                                     show=False, cmap='RdBu_r', vlim=(vmin_cb, vmax_cb),
+                                     contours=6, sensors=True)
+        axes[1, 1].set_title('LEFT - RIGHT\nBeta (contralateral effect)', 
+                            fontsize=14, fontweight='bold')
+        
+        # Hide unused subplots
+        axes[1, 2].axis('off')
+        axes[1, 3].axis('off')
+        
+        # Add colorbar
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+        cbar = fig.colorbar(im, cax=cbar_ax)
+        cbar.set_label('Power change (%)', fontsize=14, fontweight='bold')
+        cbar.ax.tick_params(labelsize=12)
+        
+        fig.suptitle(f'ERD/ERS Topoplots ({task_tmin}-{task_tmax}s after task onset)', 
+                    fontsize=18, fontweight='bold', y=0.98)
+        fig.tight_layout(rect=[0, 0, 0.9, 0.96])
+        
+        # Save topoplot
+        topoplot_filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-contralateral_erd_topoplot.png"
+        )
+        topoplot_path = output_path / topoplot_filename
+        fig.savefig(str(topoplot_path), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info(f"Contralateral ERD topoplots saved to: {topoplot_path}")
+        
+        return timecourse_path, topoplot_path
+        
+    except Exception as e:
+        logger.error(f"Failed to generate contralateral ERD plots: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, None
+
+
+Source of generate_erp_analysis:
+def generate_erp_analysis(
+    epochs: mne.Epochs,
+    output_path: Path,
+    config: SubjectConfig,
+) -> Optional[Path]:
+    """
+    Generate ERP analysis plots (Evoked potentials) with SEM shading.
+    
+    Compares averaged responses (Evoked) across conditions (LEFT, RIGHT, NOTHING)
+    for key channels comparison, including standard error of the mean (SEM).
+    
+    Args:
+        epochs: MNE Epochs object with condition information
+        output_path: Directory to save plots
+        config: SubjectConfig with subject information
+        
+    Returns:
+        Path to saved ERP plot or None if failed
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from scipy.stats import sem
+        
+        # ROI Definitions
+        left_cluster = ['FC1', 'FC5', 'C3', 'CP1', 'CP5']
+        right_cluster = ['FC2', 'FC6', 'C4', 'CP2', 'CP6']
+        
+        # Check conditions
+        conditions = list(epochs.event_id.keys())
+        has_left = any('LEFT' in cond for cond in conditions)
+        has_right = any('RIGHT' in cond for cond in conditions)
+        
+        if not (has_left and has_right):
+            logger.warning("Need both LEFT and RIGHT conditions for ERP analysis")
+            return None
+            
+        logger.info("Generating ERP Analysis plots with SEM...")
+        
+        # Get conditions
+        left_cond = [c for c in conditions if 'LEFT' in c][0]
+        right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        nothing_cond = None
+        if any('NOTHING' in cond for cond in conditions):
+             nothing_cond = [c for c in conditions if 'NOTHING' in c][0]
+             
+        # Prepare plot
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+        
+        # Time window for plot (Requested: -1 to +3 seconds)
+        tmin_plot = -1.0
+        tmax_plot = 3.0
+        
+        # Helper to compute stats (Mean, SEM)
+        def get_condition_stats(condition_name, channels, roi_mode=False):
+            if condition_name is None:
+                return None, None, None
+            
+            # Get data: (n_trials, n_channels, n_times)
+            data = epochs[condition_name].get_data(picks=channels)
+            
+            if roi_mode:
+                # Average across channels first for each trial -> (n_trials, n_times)
+                data = data.mean(axis=1)
+            else:
+                # Single channel -> (n_trials, n_times)
+                data = data[:, 0, :]
+                
+            # Compute stats across trials (axis 0)
+            # Unit conversion: V -> uV (or V/m^2 -> uV/m^2)
+            mean_data = data.mean(axis=0) * 1e6
+            sem_data = sem(data, axis=0) * 1e6
+            
+            return mean_data, sem_data, epochs.times
+            
+        # Helper to plot comparison
+        def plot_erp_comparison(ax, channel_indices, title, roi_mode=False):
+            # Get channel names for picking
+            if roi_mode:
+                # channel_indices actually contains indices, let's map back to names if needed
+                # But get_data accepts indices too
+                picks = channel_indices
+            else:
+                picks = [channel_indices[0]]
+            
+            # LEFT
+            mean_L, sem_L, times = get_condition_stats(left_cond, picks, roi_mode)
+            ax.plot(times, mean_L, 'b-', linewidth=2, label='LEFT Hand')
+            ax.fill_between(times, mean_L - sem_L, mean_L + sem_L, color='blue', alpha=0.15)
+            
+            # RIGHT
+            mean_R, sem_R, _ = get_condition_stats(right_cond, picks, roi_mode)
+            ax.plot(times, mean_R, 'r-', linewidth=2, label='RIGHT Hand')
+            ax.fill_between(times, mean_R - sem_R, mean_R + sem_R, color='red', alpha=0.15)
+            
+            # NOTHING
+            if nothing_cond:
+                mean_N, sem_N, _ = get_condition_stats(nothing_cond, picks, roi_mode)
+                ax.plot(times, mean_N, 'g--', linewidth=1.5, alpha=0.7, label='NOTHING')
+                ax.fill_between(times, mean_N - sem_N, mean_N + sem_N, color='green', alpha=0.1)
+                
+            # Styling
+            ax.axvline(0, color='black', linestyle='--', linewidth=1.5)
+            # Only show end line if it's within plot range
+            if config.trials.task_duration_sec < tmax_plot:
+                ax.axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=1.5, alpha=0.5)
+                
+            ax.axhline(0, color='gray', linestyle=':', linewidth=1)
+            ax.set_xlim(tmin_plot, tmax_plot)
+            ax.set_xlabel('Time (s)')
+            unit_label = 'Amplitude (uV/m^2)' if config.analysis.use_laplacian else 'Amplitude (uV)'
+            ax.set_ylabel(unit_label)
+            ax.set_title(title, fontweight='bold')
+            ax.legend(loc='upper right', fontsize=9)
+            ax.grid(True, alpha=0.3)
+            
+        # Get channel indices
+        ch_names = epochs.ch_names
+        
+        # 1. C3
+        if 'C3' in ch_names:
+            plot_erp_comparison(axes[0, 0], [ch_names.index('C3')], 'C3 ERP (Left Motor)')
+            
+        # 2. C4
+        if 'C4' in ch_names:
+            plot_erp_comparison(axes[0, 1], [ch_names.index('C4')], 'C4 ERP (Right Motor)')
+            
+        # 3. Left ROI Average
+        left_indices = [ch_names.index(ch) for ch in left_cluster if ch in ch_names]
+        if left_indices:
+             plot_erp_comparison(axes[1, 0], left_indices, 'Left Cluster ROI Average', roi_mode=True)
+             
+        # 4. Right ROI Average
+        right_indices = [ch_names.index(ch) for ch in right_cluster if ch in ch_names]
+        if right_indices:
+             plot_erp_comparison(axes[1, 1], right_indices, 'Right Cluster ROI Average', roi_mode=True)
+             
+        fig.suptitle(f'Event-Related Potentials (ERP): Mean +/- SEM\nSubject {config.subject.id}', 
+                    fontsize=16, fontweight='bold', y=0.98)
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        # Save
+        filename = (
+            f"sub-{config.subject.id}_"
+            f"ses-{config.subject.session}_"
+            f"task-{config.subject.task}_"
+            f"desc-erp_analysis.png"
+        )
+        filepath = output_path / filename
+        fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        
+        logger.info(f"ERP Analysis saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to generate ERP analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+

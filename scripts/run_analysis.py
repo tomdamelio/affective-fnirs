@@ -229,6 +229,12 @@ def generate_tfr_maps(
         
         logger.info(f"TFR color scale: {vmin:.1f}% to {vmax:.1f}%")
         
+        # Determine duration for NOTHING condition (crop to rest duration if shorter than viewing window)
+        tmax_nothing = tmax
+        if hasattr(config.trials, 'rest_duration_sec') and config.trials.rest_duration_sec is not None:
+             if config.trials.rest_duration_sec < tmax:
+                 tmax_nothing = config.trials.rest_duration_sec
+        
         # Row 1: C3 (Left Motor Cortex)
         # C3 - LEFT hand
         ch_idx = tfr_left.ch_names.index('C3')
@@ -279,7 +285,7 @@ def generate_tfr_maps(
             )
             axes[0, 2].axvline(0, color='black', linestyle='--', linewidth=2)
             axes[0, 2].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
-            axes[0, 2].set_xlim(tmin, tmax)
+            axes[0, 2].set_xlim(tmin, tmax_nothing)
             axes[0, 2].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
             axes[0, 2].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
             axes[0, 2].set_title('C3 (Left Motor Cortex) - NOTHING (Baseline)', fontsize=14, fontweight='bold')
@@ -334,7 +340,7 @@ def generate_tfr_maps(
             )
             axes[1, 2].axvline(0, color='black', linestyle='--', linewidth=2)
             axes[1, 2].axvline(config.trials.task_duration_sec, color='black', linestyle='--', linewidth=2, alpha=0.5)
-            axes[1, 2].set_xlim(tmin, tmax)
+            axes[1, 2].set_xlim(tmin, tmax_nothing)
             axes[1, 2].set_xlabel('Time (s)', fontsize=12, fontweight='bold')
             axes[1, 2].set_ylabel('Frequency (Hz)', fontsize=12, fontweight='bold')
             axes[1, 2].set_title('C4 (Right Motor Cortex) - NOTHING (Baseline)', fontsize=14, fontweight='bold')
@@ -2349,9 +2355,9 @@ def generate_contralateral_erd_plots(
         c3_alpha_right = extract_band_power(tfr_right, 'C3', alpha_band)
         ax.plot(tfr_left.times, c3_alpha_left, linewidth=3, label='LEFT hand', color='#1f77b4')
         ax.plot(tfr_right.times, c3_alpha_right, linewidth=3, label='RIGHT hand (contralateral)', color='#ff7f0e')
-        if tfr_nothing is not None:
-            c3_alpha_nothing = extract_band_power(tfr_nothing, 'C3', alpha_band)
-            ax.plot(tfr_nothing.times, c3_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        # if tfr_nothing is not None:
+        #     c3_alpha_nothing = extract_band_power(tfr_nothing, 'C3', alpha_band)
+        #     ax.plot(tfr_nothing.times, c3_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
         ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
         ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
         ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
@@ -2368,9 +2374,9 @@ def generate_contralateral_erd_plots(
         c4_alpha_right = extract_band_power(tfr_right, 'C4', alpha_band)
         ax.plot(tfr_left.times, c4_alpha_left, linewidth=3, label='LEFT hand (contralateral)', color='#1f77b4')
         ax.plot(tfr_right.times, c4_alpha_right, linewidth=3, label='RIGHT hand', color='#ff7f0e')
-        if tfr_nothing is not None:
-            c4_alpha_nothing = extract_band_power(tfr_nothing, 'C4', alpha_band)
-            ax.plot(tfr_nothing.times, c4_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        # if tfr_nothing is not None:
+        #     c4_alpha_nothing = extract_band_power(tfr_nothing, 'C4', alpha_band)
+        #     ax.plot(tfr_nothing.times, c4_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
         ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
         ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
         ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
@@ -2387,9 +2393,9 @@ def generate_contralateral_erd_plots(
         c3_beta_right = extract_band_power(tfr_right, 'C3', beta_band)
         ax.plot(tfr_left.times, c3_beta_left, linewidth=3, label='LEFT hand', color='#1f77b4')
         ax.plot(tfr_right.times, c3_beta_right, linewidth=3, label='RIGHT hand (contralateral)', color='#ff7f0e')
-        if tfr_nothing is not None:
-            c3_beta_nothing = extract_band_power(tfr_nothing, 'C3', beta_band)
-            ax.plot(tfr_nothing.times, c3_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        # if tfr_nothing is not None:
+        #     c3_beta_nothing = extract_band_power(tfr_nothing, 'C3', beta_band)
+        #     ax.plot(tfr_nothing.times, c3_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
         ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
         ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
         ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
@@ -2406,9 +2412,9 @@ def generate_contralateral_erd_plots(
         c4_beta_right = extract_band_power(tfr_right, 'C4', beta_band)
         ax.plot(tfr_left.times, c4_beta_left, linewidth=3, label='LEFT hand (contralateral)', color='#1f77b4')
         ax.plot(tfr_right.times, c4_beta_right, linewidth=3, label='RIGHT hand', color='#ff7f0e')
-        if tfr_nothing is not None:
-            c4_beta_nothing = extract_band_power(tfr_nothing, 'C4', beta_band)
-            ax.plot(tfr_nothing.times, c4_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        # if tfr_nothing is not None:
+        #     c4_beta_nothing = extract_band_power(tfr_nothing, 'C4', beta_band)
+        #     ax.plot(tfr_nothing.times, c4_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
         ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
         ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
         ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
@@ -4343,13 +4349,41 @@ def run_eeg_analysis(
         logger.info("Fitting ICA on clean epochs...")
         
         # Fit ICA
+        # Get ICA parameters from config if available (default to original values)
+        ica_n_components = 0.99
+        ica_max_iter = 1000
+        ica_random_state = 42
+        
+        if hasattr(config, 'ica'):
+            if hasattr(config.ica, 'n_components') and config.ica.n_components is not None:
+                ica_n_components = config.ica.n_components
+            if hasattr(config.ica, 'max_iter') and config.ica.max_iter is not None:
+                ica_max_iter = config.ica.max_iter
+            if hasattr(config.ica, 'random_state') and config.ica.random_state is not None:
+                ica_random_state = config.ica.random_state
+
         ica = mne.preprocessing.ICA(
-            n_components=0.99,
+            n_components=ica_n_components,
             method='fastica',
-            random_state=42,
-            max_iter=1000
+            random_state=ica_random_state,
+            max_iter=ica_max_iter
         )
-        ica.fit(epochs)
+        
+        try:
+            ica.fit(epochs)
+        except RuntimeError as e:
+            # Handle case where one component captures > 99% variance
+            if "One PCA component captures most of the explained variance" in str(e):
+                logger.warning("ICA fit failed with variance threshold. Retrying with n_components=15...")
+                ica = mne.preprocessing.ICA(
+                    n_components=15,
+                    method='fastica',
+                    random_state=ica_random_state,
+                    max_iter=ica_max_iter
+                )
+                ica.fit(epochs)
+            else:
+                raise e
         
         logger.info(f"ICA fitted with {ica.n_components_} components")
         

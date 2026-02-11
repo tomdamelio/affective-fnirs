@@ -1,0 +1,11 @@
+Loading data\raw\sub-012\ses-001\sub-12_ses-001_task-fingertapping_recording.xdf...
+
+Found 8 streams:
+  1. Name: 'eeg_markers', Type: 'Markers', Channels: 1, Rate: 0.0
+  2. Name: 'cortivision_markers_mirror', Type: 'Markers', Channels: 1, Rate: 0.0
+  3. Name: 'actiCHampMarkers-24020270', Type: 'Markers', Channels: 1, Rate: 0.0
+  4. Name: 'PsychoPy_Markers', Type: 'Markers', Channels: 1, Rate: 0.0
+  5. Name: 'Photon_Cap_C2022044_STATS', Type: 'NIRS', Channels: 48, Rate: 7.180469123982767
+  6. Name: 'cortivision_markers', Type: 'Markers', Channels: 1, Rate: 0.0
+  7. Name: 'Photon_Cap_C2022044_RAW', Type: 'NIRS', Channels: 54, Rate: 7.180469123982767
+  8. Name: 'actiCHamp-24020270', Type: 'EEG', Channels: 35, Rate: 500.0

@@ -1,0 +1,115 @@
+# Configuration for sub-012: EEG-only analysis (Modified fingertapping protocol)
+# Protocol: 2 conditions (LEFT, RIGHT only). NOTHING synthesized from post-trial rest.
+# Task: 10s, Rest: variable 8-16s (8, 10, 12, 14, or 16s).
+# NOTHING = rest post-trial, cropped to max 8s.
+# Baseline: -1s to 0s (1 second).
+
+# Subject identification for BIDS compliance
+subject:
+  id: "012"
+  session: "001"
+  task: "fingertapping"
+
+# Modality configuration - EEG only
+modalities:
+  eeg_enabled: true
+  fnirs_enabled: true
+
+# Report options
+report:
+  qa_only: false
+
+# EEG channels of interest for ERD/ERS analysis
+eeg_channels_of_interest:
+  - "C3"
+  - "C4"
+
+# EEG preprocessing options
+eeg_preprocessing:
+  reference_channel: "Cz"
+  apply_car: true  # Apply CAR for dense array
+  ica_enabled: true
+
+# Trial structure
+trials:
+  count_per_condition: 48  # Approximate, actual count from data
+  task_duration_sec: 10.0
+  rest_duration_sec: 8.0   # Minimum rest (variable 8-16s)
+
+# Filter configuration
+filters:
+  eeg_bandpass_low_hz: 1.0
+  eeg_bandpass_high_hz: 40.0
+  fnirs_bandpass_low_hz: 0.01
+  fnirs_bandpass_high_hz: 0.5
+  cardiac_band_low_hz: 0.5
+  cardiac_band_high_hz: 2.5
+
+# Quality thresholds
+quality:
+  sci_threshold: 0.75
+  cv_threshold_percent: 15.0
+  saturation_percent: 5.0
+  psp_threshold: 0.1
+  short_channel_distance_mm: 15.0
+
+# Epoch configuration
+epochs:
+  # EEG: -1s baseline, 10s task, 8s rest window (total 18s from onset)
+  eeg_tmin_sec: -1.0
+  eeg_tmax_sec: 18.0
+
+  # fNIRS (not used, but keeping defaults)
+  fnirs_tmin_sec: -1.0
+  fnirs_tmax_sec: 25.0
+
+  # Baseline correction window: 1 second before trial onset
+  baseline_tmin_sec: -1.0
+  baseline_tmax_sec: 0.0
+
+# Analysis configuration
+analysis:
+  # Frequency bands
+  alpha_band_low_hz: 8.0
+  alpha_band_high_hz: 13.0
+  beta_band_low_hz: 13.0
+  beta_band_high_hz: 30.0
+
+  # ERD time windows (adjusted for 10s trials)
+  baseline_window_start_sec: -1.0
+  baseline_window_end_sec: 0.0
+
+  task_window_start_sec: 0.5
+  task_window_end_sec: 9.5  # Focus on core movement (10s task)
+
+  # Beta rebound window (post-task, i.e., > 10.0s)
+  # With variable rest (8-16s), rebound likely 10.5s - 17.0s
+  beta_rebound_window_start_sec: 10.5
+  beta_rebound_window_end_sec: 17.0
+
+  # HRF validation windows (not used for EEG-only)
+  hrf_onset_window_start_sec: 2.0
+  hrf_onset_window_end_sec: 3.0
+  hrf_peak_window_start_sec: 4.0
+  hrf_peak_window_end_sec: 8.0
+
+  # DPF for Beer-Lambert
+  dpf: 6.0
+
+# ICA configuration
+ica:
+  enabled: true
+  n_components: 15
+  random_state: 42
+  max_iter: 200
+
+# Motion correction for fNIRS
+motion_correction:
+  method: tddr
+
+# Data paths
+data_root: data/raw
+output_root: data/derivatives/validation-pipeline
+
+# Random seed for reproducibility
+random_seed: 42
