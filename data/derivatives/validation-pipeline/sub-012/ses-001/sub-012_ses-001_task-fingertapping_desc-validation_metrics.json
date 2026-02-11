@@ -2,22 +2,22 @@
   "subject_id": "012",
   "session_id": "001",
   "task": "fingertapping",
-  "timestamp": "2026-02-11T09:15:47.937716",
+  "timestamp": "2026-02-11T17:45:08.996532",
   "erd_metrics": {
     "channel": "C3",
-    "alpha_erd_percent": -22.11434563887701,
-    "alpha_significant": true,
-    "beta_erd_percent": -59.98505653195164,
-    "beta_significant": true,
-    "beta_rebound_percent": 4.637779875026756,
+    "alpha_erd_percent": -10.489014497660785,
+    "alpha_significant": false,
+    "beta_erd_percent": -8.204754299602207,
+    "beta_significant": false,
+    "beta_rebound_percent": NaN,
     "beta_rebound_observed": false
   },
   "hrf_validation": {
-    "channel": "unknown",
+    "channel": "S1_D1 hbo",
     "onset_detected": false,
     "onset_time_sec": 0.0,
     "peak_plausible": false,
-    "plateau_amplitude_um": 0.0,
+    "plateau_amplitude_um": 6.656645444291388e-08,
     "plateau_significant": false
   },
   "coupling_metrics": {

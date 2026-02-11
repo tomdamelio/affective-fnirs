@@ -91,35 +91,35 @@
         },
         {
             "channel_idx": 10,
-            "source": "S4_TPP7h",
+            "source": "S4_TTP7h",
             "detector": "D5_C5",
             "wavelength": 760,
             "type": "Long",
-            "location_label": "TPP7h-C5_Hb"
+            "location_label": "TTP7h-C5_Hb"
         },
         {
             "channel_idx": 11,
-            "source": "S4_TPP7h",
+            "source": "S4_TTP7h",
             "detector": "D5_C5",
             "wavelength": 850,
             "type": "Long",
-            "location_label": "TPP7h-C5_HbO"
+            "location_label": "TTP7h-C5_HbO"
         },
         {
             "channel_idx": 12,
-            "source": "S4_TPP7h",
+            "source": "S4_TTP7h",
             "detector": "D7_TP7",
             "wavelength": 760,
             "type": "Long",
-            "location_label": "TPP7h-TP7_Hb"
+            "location_label": "TTP7h-TP7_Hb"
         },
         {
             "channel_idx": 13,
-            "source": "S4_TPP7h",
+            "source": "S4_TTP7h",
             "detector": "D7_TP7",
             "wavelength": 850,
             "type": "Long",
-            "location_label": "TPP7h-TP7_HbO"
+            "location_label": "TTP7h-TP7_HbO"
         },
         {
             "channel_idx": 14,
@@ -187,22 +187,6 @@
         },
         {
             "channel_idx": 22,
-            "source": "S7_TPP8h",
-            "detector": "D8_C6",
-            "wavelength": 760,
-            "type": "Long",
-            "location_label": "TPP8h-C6_Hb"
-        },
-        {
-            "channel_idx": 23,
-            "source": "S7_TPP8h",
-            "detector": "D8_C6",
-            "wavelength": 850,
-            "type": "Long",
-            "location_label": "TPP8h-C6_HbO"
-        },
-        {
-            "channel_idx": 24,
             "source": "S8_TPP8h",
             "detector": "D9_CPP6h",
             "wavelength": 760,
@@ -210,7 +194,7 @@
             "location_label": "TPP8h-CPP6h_Hb"
         },
         {
-            "channel_idx": 25,
+            "channel_idx": 23,
             "source": "S8_TPP8h",
             "detector": "D9_CPP6h",
             "wavelength": 850,
@@ -218,20 +202,36 @@
             "location_label": "TPP8h-CPP6h_HbO"
         },
         {
+            "channel_idx": 24,
+            "source": "S7_TTP8h",
+            "detector": "D8_C6",
+            "wavelength": 760,
+            "type": "Long",
+            "location_label": "TTP8h-C6_Hb"
+        },
+        {
+            "channel_idx": 25,
+            "source": "S7_TTP8h",
+            "detector": "D8_C6",
+            "wavelength": 850,
+            "type": "Long",
+            "location_label": "TTP8h-C6_HbO"
+        },
+        {
             "channel_idx": 26,
-            "source": "S7_TPP8h",
+            "source": "S7_TTP8h",
             "detector": "D10_TP8",
             "wavelength": 760,
             "type": "Long",
-            "location_label": "TPP8h-TP8_Hb"
+            "location_label": "TTP8h-TP8_Hb"
         },
         {
             "channel_idx": 27,
-            "source": "S7_TPP8h",
+            "source": "S7_TTP8h",
             "detector": "D10_TP8",
             "wavelength": 850,
             "type": "Long",
-            "location_label": "TPP8h-TP8_HbO"
+            "location_label": "TTP8h-TP8_HbO"
         },
         {
             "channel_idx": 28,
@@ -251,19 +251,19 @@
         },
         {
             "channel_idx": 30,
-            "source": "S5_TPP7h",
-            "detector": "D7_TP7",
+            "source": "S9_F7",
+            "detector": "D2_F5",
             "wavelength": 760,
             "type": "Long",
-            "location_label": "TPP7h-TP7_Hb"
+            "location_label": "F7-F5_Hb"
         },
         {
             "channel_idx": 31,
-            "source": "S5_TPP7h",
-            "detector": "D7_TP7",
+            "source": "S9_F7",
+            "detector": "D2_F5",
             "wavelength": 850,
             "type": "Long",
-            "location_label": "TPP7h-TP7_HbO"
+            "location_label": "F7-F5_HbO"
         },
         {
             "channel_idx": 32,
@@ -283,19 +283,19 @@
         },
         {
             "channel_idx": 34,
-            "source": "S10_F8",
-            "detector": "D3_AF8",
+            "source": "S13_xAF7",
+            "detector": "D1_AF7",
             "wavelength": 760,
-            "type": "Long",
-            "location_label": "F8-AF8_Hb"
+            "type": "Short",
+            "location_label": "Short_AF7_Hb"
         },
         {
             "channel_idx": 35,
-            "source": "S10_F8",
-            "detector": "D3_AF8",
+            "source": "S13_xAF7",
+            "detector": "D1_AF7",
             "wavelength": 850,
-            "type": "Long",
-            "location_label": "F8-AF8_HbO"
+            "type": "Short",
+            "location_label": "Short_AF7_HbO"
         },
         {
             "channel_idx": 36,
@@ -303,7 +303,7 @@
             "detector": "D3_AF8",
             "wavelength": 760,
             "type": "Short",
-            "location_label": "xAF8-AF8_Hb"
+            "location_label": "Short_AF8_Hb"
         },
         {
             "channel_idx": 37,
@@ -311,23 +311,23 @@
             "detector": "D3_AF8",
             "wavelength": 850,
             "type": "Short",
-            "location_label": "xAF8-AF8_HbO"
+            "location_label": "Short_AF8_HbO"
         },
         {
             "channel_idx": 38,
-            "source": "S15_xCCP5h",
+            "source": "S15_xCPP5h",
             "detector": "D6_CPP5h",
             "wavelength": 760,
             "type": "Short",
-            "location_label": "xCCP5h-CPP5h_Hb"
+            "location_label": "Short_CPP5h_Hb"
         },
         {
             "channel_idx": 39,
-            "source": "S15_xCCP5h",
+            "source": "S15_xCPP5h",
             "detector": "D6_CPP5h",
             "wavelength": 850,
             "type": "Short",
-            "location_label": "xCCP5h-CPP5h_HbO"
+            "location_label": "Short_CPP5h_HbO"
         },
         {
             "channel_idx": 40,
@@ -335,7 +335,7 @@
             "detector": "D9_CPP6h",
             "wavelength": 760,
             "type": "Short",
-            "location_label": "xCPP6h-CPP6h_Hb"
+            "location_label": "Short_CPP6h_Hb"
         },
         {
             "channel_idx": 41,
@@ -343,39 +343,39 @@
             "detector": "D9_CPP6h",
             "wavelength": 850,
             "type": "Short",
-            "location_label": "xCPP6h-CPP6h_HbO"
+            "location_label": "Short_CPP6h_HbO"
         },
         {
             "channel_idx": 42,
-            "source": "S13_xAF7",
-            "detector": "D1_AF7",
+            "source": "S5_TPP7h",
+            "detector": "D7_TP7",
             "wavelength": 760,
-            "type": "Short",
-            "location_label": "xAF7-AF7_Hb"
+            "type": "Long",
+            "location_label": "TPP7h-TP7_Hb"
         },
         {
             "channel_idx": 43,
-            "source": "S13_xAF7",
-            "detector": "D1_AF7",
+            "source": "S5_TPP7h",
+            "detector": "D7_TP7",
             "wavelength": 850,
-            "type": "Short",
-            "location_label": "xAF7-AF7_HbO"
+            "type": "Long",
+            "location_label": "TPP7h-TP7_HbO"
         },
         {
             "channel_idx": 44,
-            "source": "S9_F7",
-            "detector": "D2_F5",
+            "source": "S10_F8",
+            "detector": "D3_AF8",
             "wavelength": 760,
             "type": "Long",
-            "location_label": "F7-F5_Hb"
+            "location_label": "F8-AF8_Hb"
         },
         {
             "channel_idx": 45,
-            "source": "S9_F7",
-            "detector": "D2_F5",
+            "source": "S10_F8",
+            "detector": "D3_AF8",
             "wavelength": 850,
             "type": "Long",
-            "location_label": "F7-F5_HbO"
+            "location_label": "F8-AF8_HbO"
         },
         {
             "channel_idx": 46,

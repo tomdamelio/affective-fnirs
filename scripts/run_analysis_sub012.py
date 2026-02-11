@@ -163,7 +163,7 @@ def main():
         
     # 4. Synthesize NOTHING conditions
     # Task is 10s, we want 8s of rest as "NOTHING"
-    raw_eeg = synthesize_nothing_annotations(raw_eeg, task_duration=10.0, rest_duration_cap=8.0)
+    raw_eeg = synthesize_nothing_annotations(raw_eeg, task_duration=7.0, rest_duration_cap=7.0)
     
     if raw_fnirs is not None:
         # Sync annotations to fNIRS
@@ -171,7 +171,7 @@ def main():
         # But build_mne_objects embeds events into both.
         # However, synthesize_nothing_annotations uses EXISTING annotations to create new ones.
         # So we should run it on raw_fnirs too.
-        raw_fnirs = synthesize_nothing_annotations(raw_fnirs, task_duration=10.0, rest_duration_cap=8.0)
+        raw_fnirs = synthesize_nothing_annotations(raw_fnirs, task_duration=7.0, rest_duration_cap=7.0)
     
     # 5. Preprocessing (Reuse main pipeline)
     # Output path
@@ -201,7 +201,7 @@ def main():
         logger.info("Running fNIRS Analysis...")
         # Check if function exists
         if hasattr(main_pipeline, 'run_fnirs_analysis'):
-            fnirs_results = main_pipeline.run_fnirs_analysis(processed_fnirs, config, output_path)
+            fnirs_results = main_pipeline.run_fnirs_analysis(processed_fnirs, config)
         else:
             logger.warning("run_fnirs_analysis function not found in main_pipeline")
 
@@ -220,17 +220,67 @@ def main():
             eeg_results['csp_mov_vs_rest_path'] = csp_mov_path
             eeg_results['csp_mov_results'] = csp_mov_results
         
-        # Generate All Visualizations
-        logger.info("Generating Visualizations...")
-        # Pass fnirs_results to visualizations if needed/supported?
-        # generate_visualizations usually takes eeg_results and fnirs_results
-        # Let's check signature. 
-        # Line 213 in original: main_pipeline.generate_visualizations(eeg_results, None, config, output_path)
-        # So it accepts fnirs_results as second arg.
-        viz_paths = main_pipeline.generate_visualizations(eeg_results, fnirs_results, config, output_path)
+        # Generate Individual Visualizations with all 3 conditions (LEFT, RIGHT, NOTHING)
+        logger.info("Generating individual visualizations with all conditions...")
+        epochs = eeg_results['epochs']
+        viz_paths = {}
+        
+        # TFR Maps (shows LEFT, RIGHT, NOTHING in separate columns)
+        logger.info("Generating TFR maps...")
+        tfr_path = main_pipeline.generate_tfr_maps(epochs, output_path, config)
+        if tfr_path:
+            viz_paths['tfr_maps'] = tfr_path
+        
+        # ERP Analysis (shows all 3 conditions)
+        logger.info("Generating ERP analysis...")
+        erp_path = main_pipeline.generate_erp_analysis(epochs, output_path, config)
+        if erp_path:
+            viz_paths['erp_analysis'] = erp_path
+        
+        # Clustered TFR Maps
+        logger.info("Generating clustered TFR maps...")
+        clustered_tfr_path = main_pipeline.generate_clustered_tfr_maps(epochs, output_path, config)
+        if clustered_tfr_path:
+            viz_paths['clustered_tfr'] = clustered_tfr_path
+        
+        # Beta Topoplots
+        logger.info("Generating beta topoplots...")
+        beta_topo_path = main_pipeline.generate_beta_topoplots(epochs, output_path, config)
+        if beta_topo_path:
+            viz_paths['beta_topoplot'] = beta_topo_path
+        
+        # Contralateral ERD plots
+        logger.info("Generating contralateral ERD plots...")
+        contralat_timecourse, contralat_topo = main_pipeline.generate_contralateral_erd_plots(epochs, output_path, config)
+        if contralat_topo:
+            viz_paths['contralateral_topoplot'] = contralat_topo
+        
+        # fNIRS Visualizations
+        if fnirs_results and 'epochs' in fnirs_results:
+            logger.info("Generating fNIRS visualizations with all conditions...")
+            fnirs_epochs = fnirs_results['epochs']
+            
+            # HRF by Condition (shows LEFT, RIGHT, NOTHING)
+            logger.info("Generating fNIRS HRF by condition...")
+            hrf_path = main_pipeline.generate_fnirs_hrf_by_condition(fnirs_epochs, output_path, config)
+            if hrf_path:
+                viz_paths['fnirs_hrf_by_condition'] = hrf_path
+            
+            # Block Average
+            logger.info("Generating fNIRS block average...")
+            block_avg_path = main_pipeline.generate_fnirs_block_average(fnirs_epochs, output_path, config)
+            if block_avg_path:
+                viz_paths['fnirs_block_average'] = block_avg_path
+            
+            # Contrast Map
+            logger.info("Generating fNIRS contrast map...")
+            contrast_path = main_pipeline.generate_fnirs_contrast_map(fnirs_epochs, output_path, config)
+            if contrast_path:
+                viz_paths['fnirs_contrast_map'] = contrast_path
     else:
         logger.error("EEG Analysis failed to produce results.")
         viz_paths = {}
+
 
     # 7. Quality Assessment (Reuse main pipeline)
     qa_results = main_pipeline.run_quality_assessment(raw_eeg, raw_fnirs, config)

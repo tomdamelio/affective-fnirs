@@ -32,9 +32,9 @@ eeg_preprocessing:
 
 # Trial structure
 trials:
-  count_per_condition: 48  # Approximate, actual count from data
-  task_duration_sec: 10.0
-  rest_duration_sec: 8.0   # Minimum rest (variable 8-16s)
+  count_per_condition: 35  # 70 total trials (35 LEFT + 35 RIGHT)
+  task_duration_sec: 7.0   # Epoch duration for all conditions
+  rest_duration_sec: 7.0   # NOTHING epoch duration (variable 8-16s available)
 
 # Filter configuration
 filters:
@@ -56,16 +56,16 @@ quality:
 # Epoch configuration
 epochs:
   # EEG: -1s baseline, 10s task, 8s rest window (total 18s from onset)
-  eeg_tmin_sec: -1.0
-  eeg_tmax_sec: 18.0
+  eeg_tmin_sec: 0.0   # Start from onset (not pre-task)
+  eeg_tmax_sec: 7.0   # 7-second epochs
 
   # fNIRS (not used, but keeping defaults)
-  fnirs_tmin_sec: -1.0
-  fnirs_tmax_sec: 25.0
+  fnirs_tmin_sec: 0.0
+  fnirs_tmax_sec: 7.0  # Match EEG: 7s epochs
 
   # Baseline correction window: 1 second before trial onset
-  baseline_tmin_sec: -1.0
-  baseline_tmax_sec: 0.0
+  baseline_tmin_sec: 0.0  # First second of REST (from NOTHING epochs)
+  baseline_tmax_sec: 1.0
 
 # Analysis configuration
 analysis:
@@ -76,11 +76,11 @@ analysis:
   beta_band_high_hz: 30.0
 
   # ERD time windows (adjusted for 10s trials)
-  baseline_window_start_sec: -1.0
-  baseline_window_end_sec: 0.0
+  baseline_window_start_sec: 0.0  # First second of REST
+  baseline_window_end_sec: 1.0
 
-  task_window_start_sec: 0.5
-  task_window_end_sec: 9.5  # Focus on core movement (10s task)
+  task_window_start_sec: 1.5  # After baseline
+  task_window_end_sec: 6.5  # Before epoch end (7s total)
 
   # Beta rebound window (post-task, i.e., > 10.0s)
   # With variable rest (8-16s), rebound likely 10.5s - 17.0s
