@@ -49,10 +49,16 @@ data/raw/**/*.snirf
 data/raw/**/*.nii
 data/raw/**/*.nii.gz
 data/raw/**/*.h5
+data/raw/**/*.xdf
+data/raw/**/*.fif
+data/raw/**/*.edf
+data/raw/**/*.bdf
 data/derivatives/**/*.snirf
 data/derivatives/**/*.nii
 data/derivatives/**/*.nii.gz
 data/derivatives/**/*.h5
+data/derivatives/**/*.fif
+data/derivatives/**/*.epo.fif
 
 # Outputs
 outputs/**
