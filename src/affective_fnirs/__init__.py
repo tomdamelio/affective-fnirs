@@ -65,6 +65,14 @@ from affective_fnirs.lateralization_analysis import (
     plot_lateralization_timecourse,
 )
 from affective_fnirs.pipeline import run_validation_pipeline
+from affective_fnirs.validation import (
+    NothingValidationResult,
+    validate_nothing_condition,
+)
+from affective_fnirs.validation import (
+    NothingValidationResult,
+    validate_nothing_condition,
+)
 
 __version__ = "0.1.0"
 __author__ = "Sebastian et al."
@@ -124,4 +132,7 @@ __all__ = [
     "plot_lateralization_timecourse",
     # Pipeline
     "run_validation_pipeline",
+    # Validation
+    "NothingValidationResult",
+    "validate_nothing_condition",
 ]

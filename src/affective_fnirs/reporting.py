@@ -99,15 +99,32 @@ class CouplingMetrics:
 
 @dataclass
 class ClassificationMetrics:
-    """Classification performance metrics for motor tasks."""
-
+    """CSP Classification metrics (LEFT vs RIGHT)."""
+    
     accuracy: float
     std_accuracy: float
+    chance_level: float
     n_folds: int
     n_trials_left: int
     n_trials_right: int
     method: str = "CSP + LDA"
-    chance_level: float = 0.5
+
+
+@dataclass
+class ActivationMetrics:
+    """CSP Classification metrics (MOV vs NO MOV)."""
+    
+    accuracy: float
+    std_accuracy: float
+    balanced_accuracy: float
+    std_balanced_accuracy: float
+    chance_level: float
+    imbalance_ratio: float
+    n_trials_mov: int
+    n_trials_rest: int
+    method: str = "CSP + LDA"
+
+
 
 
 @dataclass
@@ -200,6 +217,7 @@ class ValidationResults:
     lateralization_metrics: LateralizationMetrics | None = None
     erd_metrics_c4: ERDMetrics | None = None  # C4 ERD metrics
     classification_metrics: ClassificationMetrics | None = None  # Classification results
+    activation_metrics: ActivationMetrics | None = None  # MOV vs NO MOV results
 
 
 
@@ -969,6 +987,38 @@ def generate_validation_report_html(
                             <li><strong>Scatter:</strong> Separation of active (Mov) vs inactive (No Mov) states in feature space.</li>
                         </ul>
                     </p>
+                    <img src="data:image/png;base64,{img_data}" 
+                         style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
+                         alt="CSP MOV vs NO MOV Analysis">
+                </div>
+                """
+                # Add explicit metrics table for MOV vs NO MOV if available
+                if validation_results.activation_metrics:
+                    am = validation_results.activation_metrics
+                    csp_mov_html += f"""
+                    <div style="background-color: #f8f9fa; border-left: 4px solid #f57c00; padding: 15px; margin: 15px 0;">
+                        <h4 style="margin-top: 0; color: #f57c00;">Classification Performance (Movement Detection)</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="border-bottom: 1px solid #ddd;">
+                                <td style="padding: 8px; font-weight: bold;">Accuracy</td>
+                                <td style="padding: 8px;">{am.accuracy:.1%} ± {am.std_accuracy:.1%}</td>
+                                <td style="padding: 8px; font-weight: bold;">Balanced Accuracy</td>
+                                <td style="padding: 8px;">{am.balanced_accuracy:.1%} ± {am.std_balanced_accuracy:.1%}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #ddd;">
+                                <td style="padding: 8px; font-weight: bold;">Chance Level</td>
+                                <td style="padding: 8px;">{am.chance_level:.1%} (Imbalance {am.imbalance_ratio:.1f}:1)</td>
+                                <td style="padding: 8px; font-weight: bold;">Trials</td>
+                                <td style="padding: 8px;">MOV: {am.n_trials_mov}, NO MOV: {am.n_trials_rest}</td>
+                            </tr>
+                        </table>
+                        <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">
+                            * Balanced Accuracy is the preferred metric due to class imbalance between MOV and NO MOV conditions.
+                        </p>
+                    </div>
+                    """
+
+                csp_mov_html += f""" # Append the image
                     <img src="data:image/png;base64,{img_data}" 
                          style="width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto;" 
                          alt="CSP MOV vs NO MOV Analysis">

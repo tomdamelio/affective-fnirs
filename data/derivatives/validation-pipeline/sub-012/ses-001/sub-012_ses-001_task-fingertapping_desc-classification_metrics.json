@@ -1,0 +1,9 @@
+{
+  "accuracy": 0.48571428571428577,
+  "std_accuracy": 0.06998542122237651,
+  "n_folds": 5,
+  "n_trials_left": 35,
+  "n_trials_right": 35,
+  "method": "CSP + LDA",
+  "chance_level": 0.5
+}

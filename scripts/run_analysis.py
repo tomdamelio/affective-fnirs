@@ -16,8 +16,12 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
+
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+import matplotlib
+matplotlib.use('Agg')
 
 
 class PipelineError(Exception):
@@ -71,6 +75,7 @@ from affective_fnirs.reporting import (
     ExperimentQA,
     LateralizationMetrics,
     ClassificationMetrics,
+    ActivationMetrics,
     generate_validation_report_html,
 )
 from affective_fnirs.fnirs_quality import (
@@ -377,189 +382,7 @@ def generate_tfr_maps(
 
 
 
-def generate_beta_topoplots(
-    epochs: mne.Epochs,
-    output_path: Path,
-    config: SubjectConfig,
-) -> Optional[Path]:
-    """
-    Generate Beta Band (13-30 Hz) ERD Topoplots across the whole head.
-    
-    Visualization to identify the spatial distribution of beta desynchronization
-    across the entire head, helping to locate the motor hotspot if displaced.
-    """
-    logger = logging.getLogger(__name__)
-    try:
-        logger.info("Generating Beta Band (13-30 Hz) ERD Topoplots...")
-        
-        # Use beta band frequencies
-        freqs = np.arange(13, 31, 1)
-        n_cycles = freqs / 2.0
-        
-        # Compute TFR for all channels
-        tfr = mne.time_frequency.tfr_multitaper(
-            epochs,
-            freqs=freqs,
-            n_cycles=n_cycles,
-            use_fft=True,
-            return_itc=False,
-            average=True,
-            n_jobs=1
-        )
-        
-        # Apply baseline correction
-        tfr.apply_baseline(
-            mode="percent"
-        )
-        
-        # Manually convert to percentage since we used direct MNE call
-        tfr.data *= 100
-        
-        # Define window
-        t_start = config.analysis.task_window_start_sec + 1.0
-        t_end = config.analysis.task_window_end_sec
 
-        # Create figure
-        fig, ax = plt.subplots(figsize=(10, 8))
-        
-        # Plot topomap using instance method (proven to work in contralateral)
-        tfr.plot_topomap(
-            tmin=t_start, 
-            tmax=t_end,
-            fmin=13, 
-            fmax=30,
-            baseline=None, # Already applied
-            mode='mean',
-            show=False,
-            axes=ax,
-            colorbar=True,
-            cmap="RdBu_r"
-        )
-        
-        ax.set_title(f"Beta Band (13-30 Hz) ERD Topography\nMean Power ({t_start}-{t_end}s)", fontsize=14)
-        
-        # Save figure
-        filename = (
-            f"sub-{config.subject.id}_"
-            f"ses-{config.subject.session}_"
-            f"task-{config.subject.task}_"
-            f"desc-beta_topoplot.png"
-        )
-        path = output_path / filename
-        fig.savefig(path, dpi=300, bbox_inches='tight')
-        plt.close(fig)
-        
-        logger.info(f"Saved beta topoplot to: {path}")
-        return path
-        
-    except Exception as e:
-        logger.error(f"Failed to generate beta topoplots: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
-
-
-def generate_contralateral_erd_plots(
-    epochs: mne.Epochs,
-    output_path: Path,
-    config: SubjectConfig,
-) -> tuple[Optional[Path], Optional[Path]]:
-    """
-    Generate Contralateral ERD/ERS plots (Timecourse and Topoplot).
-    
-    Creates specific visualizations highlighting the difference between 
-    contralateral and ipsilateral activity.
-    """
-    logger = logging.getLogger(__name__)
-    timecourse_path = None
-    topoplot_path = None
-    
-    try:
-        logger.info("Generating Contralateral ERD/ERS plots...")
-        
-        # 1. Contralateral Timecourse - skipped as it's handled by main bilateral plot
-            
-        # 2. Contralateral Topoplots
-        # Plot difference map: LEFT hand - RIGHT hand (or vice-versa depending on what we want to highlight)
-        # Expected: LEFT Hand -> Right Motor ERD (C4)
-        # Expected: RIGHT Hand -> Left Motor ERD (C3)
-        # Contrast LEFT - RIGHT:
-        # C4 should be more negative in LEFT condition (Left ERD > Right ERD) -> Negative value
-        # C3 should be less negative in LEFT condition (Left ERD < Right ERD) -> Positive value
-        
-        if "LEFT" in epochs.event_id and "RIGHT" in epochs.event_id:
-            logger.info("Computing LEFT vs RIGHT contrast for topoplots...")
-            
-            # Compute TFR for LEFT and RIGHT
-            freqs = np.arange(8, 30, 1) # Alpha and Beta
-            n_cycles = freqs / 2.0
-            
-            tfr_left = mne.time_frequency.tfr_multitaper(
-                epochs["LEFT"],
-                freqs=freqs,
-                n_cycles=n_cycles,
-                use_fft=True,
-                return_itc=False,
-                average=True,
-                n_jobs=1
-            )
-            tfr_right = mne.time_frequency.tfr_multitaper(
-                epochs["RIGHT"],
-                freqs=freqs,
-                n_cycles=n_cycles,
-                use_fft=True,
-                return_itc=False,
-                average=True,
-                n_jobs=1
-            )
-            
-            # Baseline correct
-            tfr_left.apply_baseline((config.analysis.baseline_window_start_sec, config.analysis.baseline_window_end_sec), mode="percent")
-            tfr_right.apply_baseline((config.analysis.baseline_window_start_sec, config.analysis.baseline_window_end_sec), mode="percent")
-            
-            # Manually convert to percentage since we used direct MNE call
-            tfr_left.data *= 100
-            tfr_right.data *= 100
-            
-            # Subtract: LEFT - RIGHT
-            tfr_diff = tfr_left.copy()
-            tfr_diff.data = tfr_left.data - tfr_right.data
-            
-            # Plot Topomap of difference
-            fig, ax = plt.subplots(figsize=(10, 8))
-            tfr_diff.plot_topomap(
-                tmin=2.0, tmax=4.0, # Early execution phase
-                fmin=8, fmax=30,
-                baseline=None,
-                mode='mean',
-                show=False,
-                axes=ax,
-                colorbar=True,
-                cmap="RdBu_r"
-            )
-            ax.set_title("Contralateral Contrast (LEFT - RIGHT)\nAlpha/Beta (8-30 Hz), 2.0-4.0s", fontsize=14)
-            
-            filename = (
-                f"sub-{config.subject.id}_"
-                f"ses-{config.subject.session}_"
-                f"task-{config.subject.task}_"
-                f"desc-contralateral_topoplot.png"
-            )
-            path = output_path / filename
-            fig.savefig(path, dpi=300, bbox_inches='tight')
-            plt.close(fig)
-            topoplot_path = path
-            
-            logger.info(f"Saved contralateral topoplot to: {path}")
-        else:
-            logger.warning("LEFT or RIGHT conditions missing, skipping contralateral topoplot.")
-        
-    except Exception as e:
-        logger.error(f"Failed to generate contralateral plots: {e}")
-        import traceback
-        traceback.print_exc()
-        
-    return timecourse_path, topoplot_path
 
 
 def generate_clustered_tfr_maps(
@@ -1931,44 +1754,106 @@ def generate_fnirs_hrf_by_condition(
         return None
 
 
+
+def _plot_channel_per_condition(
+    ax: plt.Axes,
+    fnirs_epochs: mne.Epochs,
+    ch_name: str,
+    ch_index: int,
+    times: np.ndarray,
+    condition_entries: list[tuple[str, str, str]],
+) -> None:
+    """Plot per-condition mean ± std HRF for a single HbO channel.
+
+    Args:
+        ax: Matplotlib axes to plot on.
+        fnirs_epochs: MNE Epochs with fNIRS data.
+        ch_name: Name of the HbO channel.
+        ch_index: Index of the channel in the HbO channel list.
+        times: Time vector for the epoch.
+        condition_entries: List of (label, condition_key, color_hex) tuples.
+    """
+    for label, condition_key, color_hex in condition_entries:
+        condition_epochs = fnirs_epochs[condition_key]
+        if len(condition_epochs) == 0:
+            continue
+        ch_data = condition_epochs.get_data(picks=[ch_name])[:, 0, :]
+        mean_hrf = ch_data.mean(axis=0) * 1e6
+        std_hrf = ch_data.std(axis=0) * 1e6
+        ax.plot(times, mean_hrf, color=color_hex, linewidth=2, label=label)
+        ax.fill_between(
+            times,
+            mean_hrf - std_hrf,
+            mean_hrf + std_hrf,
+            color=color_hex,
+            alpha=0.2,
+        )
+
+
+def _plot_channel_grand_average(
+    ax: plt.Axes,
+    fnirs_epochs: mne.Epochs,
+    hbo_channels: list[str],
+    ch_index: int,
+    times: np.ndarray,
+) -> None:
+    """Plot grand-average mean ± std HRF for a single HbO channel (fallback).
+
+    Args:
+        ax: Matplotlib axes to plot on.
+        fnirs_epochs: MNE Epochs with fNIRS data.
+        hbo_channels: List of all HbO channel names.
+        ch_index: Index of the channel in the HbO channel list.
+        times: Time vector for the epoch.
+    """
+    all_data = fnirs_epochs.get_data(picks=hbo_channels)
+    ch_data = all_data[:, ch_index, :]
+    mean_hrf = ch_data.mean(axis=0) * 1e6
+    std_hrf = ch_data.std(axis=0) * 1e6
+    ax.plot(times, mean_hrf, "r-", linewidth=2, label="All trials")
+    ax.fill_between(
+        times, mean_hrf - std_hrf, mean_hrf + std_hrf, color="red", alpha=0.2
+    )
+
+
 def generate_fnirs_block_average(
     fnirs_epochs: mne.Epochs,
     output_path: Path,
     config: SubjectConfig,
 ) -> Optional[Path]:
-    """
-    Generate block-averaged HRF for all fNIRS channels.
-    
-    Shows the grand average HRF across all trials and conditions for each channel,
-    useful for identifying which channels show task-related hemodynamic responses.
-    
+    """Generate block-averaged HRF for all fNIRS channels, separated by condition.
+
+    Shows per-condition (LEFT, RIGHT, NOTHING) HRF curves for each HbO channel,
+    allowing comparison of hemodynamic responses across conditions per channel.
+    Falls back to grand average if no condition info is available.
+
     Args:
-        fnirs_epochs: MNE Epochs with fNIRS data
-        output_path: Directory to save plot
-        config: SubjectConfig with subject information
-        
+        fnirs_epochs: MNE Epochs with fNIRS data.
+        output_path: Directory to save plot.
+        config: SubjectConfig with subject information.
+
     Returns:
-        Path to saved figure or None if failed
+        Path to saved figure or None if failed.
     """
     logger = logging.getLogger(__name__)
-    
+
     try:
         logger.info("Generating fNIRS block average plot...")
-        
+
         # Get HbO channels only for cleaner visualization
-        hbo_channels = [ch for ch in fnirs_epochs.ch_names if 'hbo' in ch.lower()]
-        
+        hbo_channels = [ch for ch in fnirs_epochs.ch_names if "hbo" in ch.lower()]
+
         if not hbo_channels:
             logger.warning("No HbO channels found")
             return None
-        
+
         n_channels = len(hbo_channels)
         times = fnirs_epochs.times
-        
+
         # Calculate grid size
         n_cols = min(4, n_channels)
         n_rows = (n_channels + n_cols - 1) // n_cols
-        
+
         fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3 * n_rows))
         if n_rows == 1 and n_cols == 1:
             axes = np.array([[axes]])
@@ -1976,45 +1861,80 @@ def generate_fnirs_block_average(
             axes = axes.reshape(1, -1)
         elif n_cols == 1:
             axes = axes.reshape(-1, 1)
-        
-        # Get all data
-        data = fnirs_epochs.get_data(picks=hbo_channels)  # (trials, channels, time)
-        
+
+        # Detect available conditions
+        condition_names = list(fnirs_epochs.event_id.keys())
+        condition_color_map: dict[str, tuple[str, str]] = {
+            "LEFT": ("#1f77b4", "LEFT"),
+            "RIGHT": ("#ff7f0e", "RIGHT"),
+            "NOTHING": ("#2ca02c", "NOTHING"),
+        }
+
+        # Build list of (label, condition_key, color) for conditions present
+        condition_entries: list[tuple[str, str, str]] = []
+        for keyword, (color_hex, label) in condition_color_map.items():
+            matched_key = next(
+                (cond for cond in condition_names if keyword in cond), None
+            )
+            if matched_key is not None:
+                condition_entries.append((label, matched_key, color_hex))
+
+        use_per_condition = len(condition_entries) > 0
+        if use_per_condition:
+            logger.info(
+                "Block average: plotting per-condition lines for %s",
+                [entry[0] for entry in condition_entries],
+            )
+        else:
+            logger.info("Block average: no condition info, using grand average")
+
         for idx, ch_name in enumerate(hbo_channels):
             row = idx // n_cols
             col = idx % n_cols
             ax = axes[row, col]
-            
-            # Get data for this channel
-            ch_data = data[:, idx, :]  # (trials, time)
-            mean_hrf = ch_data.mean(axis=0) * 1e6  # Convert to μM
-            std_hrf = ch_data.std(axis=0) * 1e6
-            
-            ax.plot(times, mean_hrf, 'r-', linewidth=2)
-            ax.fill_between(times, mean_hrf - std_hrf, mean_hrf + std_hrf,
-                           color='red', alpha=0.2)
-            ax.axvline(0, color='black', linestyle='--', linewidth=1)
-            ax.axvline(config.trials.task_duration_sec, color='gray', linestyle='--', linewidth=1)
-            ax.axhline(0, color='gray', linestyle='-', linewidth=0.5, alpha=0.5)
-            
-            # Simplify channel name for title
-            short_name = ch_name.replace('_hbo', '').replace('S', 'S').replace('D', '-D')
-            ax.set_title(short_name, fontsize=10, fontweight='bold')
-            ax.set_xlabel('Time (s)', fontsize=9)
-            ax.set_ylabel('ΔHbO (μM)', fontsize=9)
+
+            if use_per_condition:
+                _plot_channel_per_condition(
+                    ax, fnirs_epochs, ch_name, idx, times, condition_entries
+                )
+            else:
+                _plot_channel_grand_average(
+                    ax, fnirs_epochs, hbo_channels, idx, times
+                )
+
+            ax.axvline(0, color="black", linestyle="--", linewidth=1)
+            ax.axvline(
+                config.trials.task_duration_sec,
+                color="gray",
+                linestyle="--",
+                linewidth=1,
+            )
+            ax.axhline(0, color="gray", linestyle="-", linewidth=0.5, alpha=0.5)
+
+            short_name = ch_name.replace("_hbo", "").replace("S", "S").replace(
+                "D", "-D"
+            )
+            ax.set_title(short_name, fontsize=10, fontweight="bold")
+            ax.set_xlabel("Time (s)", fontsize=9)
+            ax.set_ylabel("ΔHbO (μM)", fontsize=9)
             ax.grid(True, alpha=0.3)
-        
+            ax.legend(loc="best", fontsize=7)
+
         # Hide empty subplots
         for idx in range(n_channels, n_rows * n_cols):
             row = idx // n_cols
             col = idx % n_cols
             axes[row, col].set_visible(False)
-        
-        fig.suptitle(f'fNIRS Block Average - All HbO Channels\n'
-                    f'Subject {config.subject.id} | {len(fnirs_epochs)} trials',
-                    fontsize=14, fontweight='bold', y=1.02)
+
+        fig.suptitle(
+            f"fNIRS Block Average - All HbO Channels\n"
+            f"Subject {config.subject.id} | {len(fnirs_epochs)} trials",
+            fontsize=14,
+            fontweight="bold",
+            y=1.02,
+        )
         fig.tight_layout()
-        
+
         # Save figure
         filename = (
             f"sub-{config.subject.id}_"
@@ -2025,15 +1945,18 @@ def generate_fnirs_block_average(
         filepath = output_path / filename
         fig.savefig(str(filepath), dpi=150, bbox_inches="tight")
         plt.close(fig)
-        
+
         logger.info(f"fNIRS block average saved to: {filepath}")
         return filepath
-        
+
     except Exception as e:
         logger.error(f"Failed to generate fNIRS block average: {e}")
         import traceback
+
         traceback.print_exc()
         return None
+
+
 
 
 def generate_fnirs_contrast_map(
@@ -2355,9 +2278,9 @@ def generate_contralateral_erd_plots(
         c3_alpha_right = extract_band_power(tfr_right, 'C3', alpha_band)
         ax.plot(tfr_left.times, c3_alpha_left, linewidth=3, label='LEFT hand', color='#1f77b4')
         ax.plot(tfr_right.times, c3_alpha_right, linewidth=3, label='RIGHT hand (contralateral)', color='#ff7f0e')
-        # if tfr_nothing is not None:
-        #     c3_alpha_nothing = extract_band_power(tfr_nothing, 'C3', alpha_band)
-        #     ax.plot(tfr_nothing.times, c3_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        if tfr_nothing is not None:
+            c3_alpha_nothing = extract_band_power(tfr_nothing, 'C3', alpha_band)
+            ax.plot(tfr_nothing.times, c3_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
         ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
         ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
         ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
@@ -2374,9 +2297,9 @@ def generate_contralateral_erd_plots(
         c4_alpha_right = extract_band_power(tfr_right, 'C4', alpha_band)
         ax.plot(tfr_left.times, c4_alpha_left, linewidth=3, label='LEFT hand (contralateral)', color='#1f77b4')
         ax.plot(tfr_right.times, c4_alpha_right, linewidth=3, label='RIGHT hand', color='#ff7f0e')
-        # if tfr_nothing is not None:
-        #     c4_alpha_nothing = extract_band_power(tfr_nothing, 'C4', alpha_band)
-        #     ax.plot(tfr_nothing.times, c4_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        if tfr_nothing is not None:
+            c4_alpha_nothing = extract_band_power(tfr_nothing, 'C4', alpha_band)
+            ax.plot(tfr_nothing.times, c4_alpha_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
         ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
         ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
         ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
@@ -2393,9 +2316,9 @@ def generate_contralateral_erd_plots(
         c3_beta_right = extract_band_power(tfr_right, 'C3', beta_band)
         ax.plot(tfr_left.times, c3_beta_left, linewidth=3, label='LEFT hand', color='#1f77b4')
         ax.plot(tfr_right.times, c3_beta_right, linewidth=3, label='RIGHT hand (contralateral)', color='#ff7f0e')
-        # if tfr_nothing is not None:
-        #     c3_beta_nothing = extract_band_power(tfr_nothing, 'C3', beta_band)
-        #     ax.plot(tfr_nothing.times, c3_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        if tfr_nothing is not None:
+            c3_beta_nothing = extract_band_power(tfr_nothing, 'C3', beta_band)
+            ax.plot(tfr_nothing.times, c3_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
         ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
         ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
         ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
@@ -2412,9 +2335,9 @@ def generate_contralateral_erd_plots(
         c4_beta_right = extract_band_power(tfr_right, 'C4', beta_band)
         ax.plot(tfr_left.times, c4_beta_left, linewidth=3, label='LEFT hand (contralateral)', color='#1f77b4')
         ax.plot(tfr_right.times, c4_beta_right, linewidth=3, label='RIGHT hand', color='#ff7f0e')
-        # if tfr_nothing is not None:
-        #     c4_beta_nothing = extract_band_power(tfr_nothing, 'C4', beta_band)
-        #     ax.plot(tfr_nothing.times, c4_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
+        if tfr_nothing is not None:
+            c4_beta_nothing = extract_band_power(tfr_nothing, 'C4', beta_band)
+            ax.plot(tfr_nothing.times, c4_beta_nothing, linewidth=3, label='NOTHING (baseline)', color='#2ca02c', linestyle='--')
         ax.axhline(0, color='black', linestyle='--', linewidth=2, alpha=0.5)
         ax.axvline(0, color='red', linestyle='--', linewidth=2, alpha=0.5, label='Task onset')
         ax.axvline(config.trials.task_duration_sec, color='red', linestyle='--', linewidth=2, alpha=0.5)
@@ -2634,8 +2557,8 @@ def generate_beta_topoplots(
     Generate topographic maps of Beta band (13-30 Hz) power changes (ERD).
     
     Calculates the % power change in the Beta band relative to baseline for
-    LEFT and RIGHT conditions. Helps identify the spatial location of the
-    strongest ERD (the "motor hotspot").
+    LEFT, RIGHT and NOTHING conditions. Helps identify the spatial location of the
+    strongest ERD (the "motor hotspot") and resting state activity.
     
     Args:
         epochs: MNE Epochs object
@@ -2653,6 +2576,7 @@ def generate_beta_topoplots(
         conditions = list(epochs.event_id.keys())
         has_left = any('LEFT' in cond for cond in conditions)
         has_right = any('RIGHT' in cond for cond in conditions)
+        has_nothing = any('NOTHING' in cond for cond in conditions)
         
         if not (has_left and has_right):
             logger.warning("Need LEFT and RIGHT conditions for Beta Topoplots")
@@ -2660,6 +2584,7 @@ def generate_beta_topoplots(
             
         left_cond = [c for c in conditions if 'LEFT' in c][0]
         right_cond = [c for c in conditions if 'RIGHT' in c][0]
+        nothing_cond = [c for c in conditions if 'NOTHING' in c][0] if has_nothing else None
         
         # Define frequency bands and windows
         beta_freqs = np.arange(13, 31, 1)
@@ -2670,58 +2595,60 @@ def generate_beta_topoplots(
         
         from mne.time_frequency import tfr_multitaper
         
-        # Compute TFR for all channels
-        # We need TFR to get power over time, then average in time window
-        tfr = tfr_multitaper(
-            epochs,
-            freqs=beta_freqs,
-            n_cycles=beta_freqs/2.0,
-            use_fft=True,
-            return_itc=False,
-            average=True,
-            n_jobs=1
-        )
+        # Compute TFR for all channels to get common baseline scaling if needed
+        # But we'll do per-condition TFR to keep logic simple and separated
         
-        # Apply baseline correction manually to get % change
-        # Get baseline power: average -5 to -2s (or config)
-        baseline_mask = (tfr.times >= tmin_base) & (tfr.times <= tmax_base)
-        baseline_power = np.mean(tfr.data[:, :, baseline_mask], axis=2, keepdims=True)
+        def compute_cond_tfr(cond_epochs):
+             return tfr_multitaper(
+                cond_epochs,
+                freqs=beta_freqs,
+                n_cycles=beta_freqs/2.0,
+                use_fft=True,
+                return_itc=False,
+                average=True,
+                n_jobs=1
+            )
+            
+        # We need individual TFRs
+        tfr_left = compute_cond_tfr(epochs[left_cond])
+        tfr_right = compute_cond_tfr(epochs[right_cond])
+        tfr_nothing = compute_cond_tfr(epochs[nothing_cond]) if nothing_cond else None
         
-        # Get task power: average 0.5 to 4s
-        task_mask = (tfr.times >= tmin_task) & (tfr.times <= tmax_task)
-        # Power change = (Task - Base) / Base * 100
-        # tfr.data is (n_channels, n_freqs, n_times)
-        
-        # We need separate TFRs for LEFT and RIGHT to plot them separately
-        tfr_left = tfr_multitaper(epochs[left_cond], freqs=beta_freqs, n_cycles=beta_freqs/2.0, return_itc=False, average=True)
-        tfr_right = tfr_multitaper(epochs[right_cond], freqs=beta_freqs, n_cycles=beta_freqs/2.0, return_itc=False, average=True)
-        
-        # Calculate ERD% for each channel in Beta band
-        # 1. Average over frequencies (13-30 Hz)
-        # 2. Average over time (task window)
-        # 3. Normalize by baseline
-        
+        # Helper to compute ERD% topo data
         def get_beta_erd_topo(tfr_inst):
             # Baseline power per channel (averaged over freq and time)
-            base_data = tfr_inst.data[:, :, baseline_mask] # (ch, freq, time)
+            # Note: tfr_inst is AverageTFR, data is (n_channels, n_freqs, n_times)
+            
+            # Baseline mask
+            baseline_mask = (tfr_inst.times >= tmin_base) & (tfr_inst.times <= tmax_base)
+            base_data = tfr_inst.data[:, :, baseline_mask]
             base_mean = np.mean(base_data, axis=(1, 2)) # (ch,)
             
             # Task power per channel
+            task_mask = (tfr_inst.times >= tmin_task) & (tfr_inst.times <= tmax_task)
             task_data = tfr_inst.data[:, :, task_mask]
             task_mean = np.mean(task_data, axis=(1, 2)) # (ch,)
             
-            # Percent change (ERD is negative)
+            # Percent change
+            # Handle potential zero division if baseline is 0 (unlikely)
+            base_mean = np.where(base_mean == 0, 1e-9, base_mean)
             erd_percent = ((task_mean - base_mean) / base_mean) * 100
             return erd_percent
 
         erd_left = get_beta_erd_topo(tfr_left)
         erd_right = get_beta_erd_topo(tfr_right)
+        erd_nothing = get_beta_erd_topo(tfr_nothing) if tfr_nothing else None
         
         # Plotting
-        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        n_plots = 3 if erd_nothing is not None else 2
+        fig, axes = plt.subplots(1, n_plots, figsize=(6*n_plots, 5))
         
-        # Color limits - find reasonable max
-        vmax = np.max(np.abs(np.concatenate([erd_left, erd_right])))
+        # Color limits - find reasonable max across all available data
+        all_data = np.concatenate([erd_left, erd_right])
+        if erd_nothing is not None:
+             all_data = np.concatenate([all_data, erd_nothing])
+             
+        vmax = np.max(np.abs(all_data))
         vmax = min(vmax, 50) # Cap at 50%
         vmin = -vmax
         
@@ -2729,17 +2656,26 @@ def generate_beta_topoplots(
         im, _ = mne.viz.plot_topomap(
             erd_left, epochs.info, axes=axes[0], show=False,
             cmap='RdBu_r', vlim=(vmin, vmax), contours=0,
-            names=epochs.ch_names, show_names=True
+            names=epochs.ch_names
         )
-        axes[0].set_title('Beta ERD: LEFT Hand\n(Right Hemisphere Activation?', fontsize=14, fontweight='bold')
+        axes[0].set_title('Beta ERD: LEFT Hand\n(Right Hemisphere Activation?)', fontsize=14, fontweight='bold')
         
         # RIGHT Hand
         im, _ = mne.viz.plot_topomap(
             erd_right, epochs.info, axes=axes[1], show=False,
             cmap='RdBu_r', vlim=(vmin, vmax), contours=0,
-            names=epochs.ch_names, show_names=True
+            names=epochs.ch_names
         )
         axes[1].set_title('Beta ERD: RIGHT Hand\n(Left Hemisphere Activation?)', fontsize=14, fontweight='bold')
+        
+        # NOTHING
+        if erd_nothing is not None:
+            im, _ = mne.viz.plot_topomap(
+                erd_nothing, epochs.info, axes=axes[2], show=False,
+                cmap='RdBu_r', vlim=(vmin, vmax), contours=0,
+                names=epochs.ch_names
+            )
+            axes[2].set_title('Beta ERD: NOTHING\n(Baseline/Rest)', fontsize=14, fontweight='bold')
         
         # Colorbar
         cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
@@ -5747,13 +5683,30 @@ def save_full_report(
                 "method": classification_metrics.method,
                 "chance_level": classification_metrics.chance_level
             }
-            metrics_filename = f"sub-{subject_id}_ses-{session_id}_task-{task}_desc-classification_metrics.json"
+            metrics_filename = f"sub-{config.subject.id}_ses-{config.subject.session}_task-{config.subject.task}_desc-classification_metrics.json"
             metrics_path = output_path / metrics_filename
             with open(metrics_path, "w") as f:
                 json.dump(metrics_dict, f, indent=2)
             logger.info(f"Classification metrics saved to: {metrics_path}")
         except Exception as e:
             logger.error(f"Failed to save classification metrics JSON: {e}")
+
+    # Create ActivationMetrics from CSP MOV vs NO MOV results
+    activation_metrics = None
+    if eeg_results and eeg_results.get("csp_mov_results"):
+        mov_data = eeg_results["csp_mov_results"]
+        if "accuracy" in mov_data and not np.isnan(mov_data["accuracy"]):
+            activation_metrics = ActivationMetrics(
+                accuracy=float(mov_data["accuracy"]),
+                std_accuracy=float(mov_data.get("std_accuracy", 0.0) or 0.0),
+                balanced_accuracy=float(mov_data.get("balanced_accuracy", 0.0) or 0.0),
+                std_balanced_accuracy=float(mov_data.get("std_balanced_accuracy", 0.0) or 0.0),
+                chance_level=0.5, # Approximate, could be calculated from imbalance
+                imbalance_ratio=float(mov_data.get("imbalance_ratio", 1.0)),
+                n_trials_mov=int(mov_data.get("n_trials_mov", 0)),
+                n_trials_rest=int(mov_data.get("n_trials_rest", 0)),
+                method="CSP + LDA"
+            )
 
     # Create ValidationResults
     validation_results = ValidationResults(
@@ -5778,6 +5731,7 @@ def save_full_report(
         lateralization_metrics=None,  # Not implemented in unified pipeline yet
         erd_metrics_c4=erd_metrics_c4,
         classification_metrics=classification_metrics,
+        activation_metrics=activation_metrics,
     )
 
     # Pass visualization paths directly (not loaded as figures)

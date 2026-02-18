@@ -15,6 +15,7 @@ matplotlib.use('Agg')
 import argparse
 import logging
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 import numpy as np
@@ -35,6 +36,7 @@ from affective_fnirs.mne_builder import (
     build_eeg_raw,
     embed_events,
 )
+from affective_fnirs.validation import validate_nothing_condition
 import run_analysis as main_pipeline
 
 # Setup logging
@@ -45,82 +47,133 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def synthesize_nothing_annotations(raw: mne.io.Raw, task_duration: float = 10.0, rest_duration_cap: float = 8.0):
+
+@dataclass
+class SynthesisStats:
+    """Tracks NOTHING annotation synthesis outcomes.
+
+    Attributes:
+        n_created: Number of NOTHING annotations successfully created.
+        n_skipped: Number of trials skipped due to insufficient rest.
+        n_source_trials: Total LEFT/RIGHT trials found as synthesis sources.
     """
-    Synthesize NOTHING annotations based on LEFT/RIGHT task offset.
-    NOTHING corresponds to the post-trial rest period.
+
+    n_created: int
+    n_skipped: int
+    n_source_trials: int
+
+
+def synthesize_nothing_annotations(
+    raw: mne.io.Raw,
+    task_duration: float = 7.0,
+    rest_duration_cap: float = 6.0,
+) -> tuple[mne.io.Raw, dict[str, int]]:
+    """Synthesize NOTHING annotations from post-trial rest periods.
+
+    Creates a NOTHING annotation for each LEFT/RIGHT trial whose subsequent
+    rest period is long enough.  The virtual onset is placed 1.0 s after
+    stimulus offset (task_end + 1.0) to allow a 1-s baseline gap, and the
+    annotation duration equals ``rest_duration_cap`` (6.0 s by default),
+    matching LEFT/RIGHT epoch length.
+
+    Args:
+        raw: MNE Raw object containing LEFT/RIGHT annotations.
+        task_duration: Duration of the motor task in seconds.
+        rest_duration_cap: Duration assigned to each NOTHING annotation
+            (epoch length).  The minimum required rest between trials is
+            ``rest_duration_cap + 1.0`` (baseline gap + epoch).
+
+    Returns:
+        A tuple of (modified raw, synthesis_stats) where synthesis_stats is
+        a dict with keys ``n_created``, ``n_skipped``, ``n_source_trials``.
     """
     logger.info("Synthesizing NOTHING annotations from post-trial rest...")
-    
-    # Sort annotations by onset to ensure correct order
+
     onsets = raw.annotations.onset
     descriptions = raw.annotations.description
     sort_idx = np.argsort(onsets)
     sorted_onsets = onsets[sort_idx]
     sorted_descriptions = descriptions[sort_idx]
-    
-    new_onsets = []
-    new_durations = []
-    new_descriptions = []
-    
-    for i in range(len(sorted_onsets)):
-        desc = sorted_descriptions[i]
-        onset = sorted_onsets[i]
-        
-        if desc in ['LEFT', 'RIGHT']:
-            # NOTHING starts after task finishes + 1 second (to allow for -1s baseline)
-            # This creates a "virtual onset" at T+1s.
-            # Epoch window (-1, 7) relative to this virtual onset will capture:
-            # - Baseline: (T+1-1) to (T+1+0) = T to T+1 (First 1s of rest)
-            # - Activity: (T+1+0) to (T+1+7) = T+1 to T+8 (Next 7s of rest)
-            nothing_virtual_onset = task_end + 1.0
-            
-            # Find next trial onset to calculate available rest
-            next_trial_onset = None
-            for j in range(i + 1, len(sorted_onsets)):
-                if sorted_descriptions[j] in ['LEFT', 'RIGHT']:
-                    next_trial_onset = sorted_onsets[j]
-                    break
-            
-            if next_trial_onset:
-                # Available rest starts at task_end
-                # We need nothing_virtual_onset + 7s to be within available rest
-                # end_of_nothing = nothing_virtual_onset + 7.0 = task_end + 8.0
-                # So we need available_rest >= 8.0
-                available_rest_duration = next_trial_onset - task_end
-                
-                # If we have enough rest for the full 8s window (1s baseline + 7s data)
-                if available_rest_duration >= (rest_duration_cap + 1.0):
-                     duration = rest_duration_cap # Duration of the annotation itself doesn't strictly matter for discrete epochs, but good for visualization
-                else:
-                     # Truncate if not enough rest (unlikely given design, but safe)
-                     duration = max(0, available_rest_duration - 1.0)
-            else:
-                # Last trial, assume sufficient rest
+
+    new_onsets: list[float] = []
+    new_durations: list[float] = []
+    new_descriptions: list[str] = []
+
+    n_source_trials = 0
+    n_skipped = 0
+
+    for trial_idx in range(len(sorted_onsets)):
+        description = sorted_descriptions[trial_idx]
+        onset = sorted_onsets[trial_idx]
+
+        is_left = description == "LEFT" or description.startswith("LEFT/")
+        is_right = description == "RIGHT" or description.startswith("RIGHT/")
+
+        if not (is_left or is_right):
+            continue
+
+        n_source_trials += 1
+        task_end = onset + task_duration
+        nothing_virtual_onset = task_end + 1.0
+
+        # Find next LEFT/RIGHT trial onset to bound available rest
+        next_trial_onset: Optional[float] = None
+        for search_idx in range(trial_idx + 1, len(sorted_onsets)):
+            next_desc = sorted_descriptions[search_idx]
+            if (
+                next_desc == "LEFT"
+                or next_desc.startswith("LEFT/")
+                or next_desc == "RIGHT"
+                or next_desc.startswith("RIGHT/")
+            ):
+                next_trial_onset = sorted_onsets[search_idx]
+                break
+
+        if next_trial_onset is not None:
+            available_rest_duration = next_trial_onset - task_end
+            if available_rest_duration >= (rest_duration_cap + 1.0):
                 duration = rest_duration_cap
-            
-            # Only add if we have a valid positive duration
-            if duration >= rest_duration_cap: # Strict requirement for full epoch
-                new_onsets.append(nothing_virtual_onset)
-                new_durations.append(duration)
-                new_descriptions.append('NOTHING')
-            
+            else:
+                n_skipped += 1
+                continue
+        else:
+            # Last trial — assume sufficient rest
+            duration = rest_duration_cap
+
+        new_onsets.append(nothing_virtual_onset)
+        new_durations.append(duration)
+        new_descriptions.append("NOTHING")
+
+    n_created = len(new_onsets)
+    synthesis_stats: dict[str, int] = {
+        "n_created": n_created,
+        "n_skipped": n_skipped,
+        "n_source_trials": n_source_trials,
+    }
+
     if not new_onsets:
-        logger.warning("No LEFT/RIGHT annotations found to synthesize NOTHING from!")
-        return raw
-        
-    # Create new annotations object
-    nothing_annot = mne.Annotations(
+        logger.warning(
+            "No NOTHING annotations created "
+            f"(source trials: {n_source_trials}, skipped: {n_skipped})"
+        )
+        return raw, synthesis_stats
+
+    nothing_annotations = mne.Annotations(
         onset=new_onsets,
         duration=new_durations,
         description=new_descriptions,
-        orig_time=raw.annotations.orig_time
+        orig_time=raw.annotations.orig_time,
     )
-    
-    # Append to existing raw
-    raw.set_annotations(raw.annotations + nothing_annot)
-    logger.info(f"Added {len(new_onsets)} synthesized NOTHING annotations")
-    return raw
+
+    raw.set_annotations(raw.annotations + nothing_annotations)
+    logger.info(
+        f"NOTHING synthesis complete — "
+        f"created: {n_created}, skipped: {n_skipped}, "
+        f"source trials: {n_source_trials}"
+    )
+    return raw, synthesis_stats
+
+
 
 def main():
     parser = argparse.ArgumentParser(description="Sub-012 Analysis")
@@ -176,16 +229,16 @@ def main():
         logger.warning("No fNIRS stream found (unexpected for sub-012)")
         
     # 4. Synthesize NOTHING conditions
-    # Task is 10s, we want 8s of rest as "NOTHING"
-    raw_eeg = synthesize_nothing_annotations(raw_eeg, task_duration=7.0, rest_duration_cap=7.0)
+    # Task is 7s, NOTHING epochs are 6s (matching LEFT/RIGHT epoch duration)
+    raw_eeg, eeg_synthesis_stats = synthesize_nothing_annotations(
+        raw_eeg, task_duration=7.0, rest_duration_cap=6.0
+    )
     
     if raw_fnirs is not None:
-        # Sync annotations to fNIRS
-        # Note: fNIRS might have slightly different timestamps/events depending on how build_mne_objects works.
-        # But build_mne_objects embeds events into both.
-        # However, synthesize_nothing_annotations uses EXISTING annotations to create new ones.
-        # So we should run it on raw_fnirs too.
-        raw_fnirs = synthesize_nothing_annotations(raw_fnirs, task_duration=7.0, rest_duration_cap=7.0)
+        # Run synthesis on fNIRS too — it has its own copy of annotations
+        raw_fnirs, fnirs_synthesis_stats = synthesize_nothing_annotations(
+            raw_fnirs, task_duration=7.0, rest_duration_cap=6.0
+        )
     
     # 5. Preprocessing (Reuse main pipeline)
     # Output path
@@ -219,6 +272,36 @@ def main():
         else:
             logger.warning("run_fnirs_analysis function not found in main_pipeline")
 
+    # 6.5 Validate NOTHING condition integrity (advisory, non-blocking)
+    logger.info("Validating NOTHING condition...")
+    fnirs_epochs_for_validation = (
+        fnirs_results["epochs"] if fnirs_results and "epochs" in fnirs_results else None
+    )
+    eeg_epochs_for_validation = (
+        eeg_results["epochs"] if eeg_results and "epochs" in eeg_results else None
+    )
+    validation_result = validate_nothing_condition(
+        eeg_epochs=eeg_epochs_for_validation,
+        fnirs_epochs=fnirs_epochs_for_validation,
+    )
+    if validation_result.all_passed:
+        logger.info(
+            "NOTHING validation: all checks passed "
+            "(%d NOTHING, %d LEFT, %d RIGHT epochs)",
+            validation_result.n_nothing_epochs,
+            validation_result.n_left_epochs,
+            validation_result.n_right_epochs,
+        )
+    else:
+        logger.warning(
+            "NOTHING validation: %d issue(s) detected — %s",
+            len(validation_result.warnings),
+            "; ".join(validation_result.warnings),
+        )
+
+    # Process EEG Results (CSP, Viz)
+    viz_paths = {}
+    if eeg_results:
         # Run CSP (LEFT vs RIGHT)
         # Note: This function requires 'epochs' in eeg_results
         logger.info("Running CSP Analysis (LEFT vs RIGHT)...")
@@ -227,16 +310,21 @@ def main():
         eeg_results['csp_results'] = csp_results
         
         # Run CSP (MOV vs REST)
-        if hasattr(main_pipeline, 'generate_csp_movement_vs_rest'):
-            logger.info("Running CSP Analysis (MOV vs NO MOV)...")
-            csp_mov_path, csp_mov_results = main_pipeline.generate_csp_movement_vs_rest(eeg_results['epochs'], output_path, config)
-            eeg_results['csp_mov_vs_rest_path'] = csp_mov_path
-            eeg_results['csp_mov_results'] = csp_mov_results
+        # Verify module path and function existence
+        logger.info(f"Loaded main_pipeline from: {main_pipeline.__file__}")
+        if not hasattr(main_pipeline, 'generate_csp_movement_vs_rest'):
+             logger.error("generate_csp_movement_vs_rest NOT FOUND in main_pipeline!")
+        
+        logger.info(f"Event IDs in epochs: {eeg_results['epochs'].event_id}")
+
+        logger.info("Running CSP Analysis (MOV vs NO MOV)...")
+        csp_mov_path, csp_mov_results = main_pipeline.generate_csp_movement_vs_rest(eeg_results['epochs'], output_path, config)
+        eeg_results['csp_mov_vs_rest_path'] = csp_mov_path
+        eeg_results['csp_mov_results'] = csp_mov_results
         
         # Generate Individual Visualizations with all 3 conditions (LEFT, RIGHT, NOTHING)
         logger.info("Generating individual visualizations with all conditions...")
         epochs = eeg_results['epochs']
-        viz_paths = {}
         
         # Add CSP paths to viz_paths for report generation
         if 'csp_analysis_path' in eeg_results and eeg_results['csp_analysis_path']:
@@ -275,6 +363,12 @@ def main():
             viz_paths['eeg_contralateral_topoplot'] = contralat_topo
         if contralat_timecourse:
             viz_paths['eeg_contralateral_timecourse'] = contralat_timecourse
+            
+        # Contrast Analysis
+        logger.info("Generating contrast analysis...")
+        contrast_path, lat_index_path = main_pipeline.generate_contrast_analysis(epochs, output_path, config)
+        if contrast_path:
+            viz_paths['eeg_contrast_analysis'] = contrast_path
         
         # fNIRS Visualizations
         if fnirs_results and 'epochs' in fnirs_results:
@@ -301,7 +395,6 @@ def main():
 
     else:
         logger.error("EEG Analysis failed to produce results.")
-        viz_paths = {}
 
 
     # 7. Quality Assessment (Reuse main pipeline)
