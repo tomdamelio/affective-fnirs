@@ -114,6 +114,10 @@ class EpochConfig:
         fnirs_tmax_sec: fNIRS epoch end time relative to event (seconds)
         baseline_tmin_sec: Baseline window start for correction (seconds)
         baseline_tmax_sec: Baseline window end for correction (seconds)
+        nothing_tmin_sec: NOTHING epoch start time relative to event (seconds)
+        nothing_tmax_sec: NOTHING epoch end time relative to event (seconds)
+        nothing_baseline_tmin_sec: NOTHING baseline window start (seconds)
+        nothing_baseline_tmax_sec: NOTHING baseline window end (seconds)
     """
 
     eeg_tmin_sec: float = -3.0
@@ -122,6 +126,11 @@ class EpochConfig:
     fnirs_tmax_sec: float = 15.0
     baseline_tmin_sec: float = -3.0
     baseline_tmax_sec: float = -1.0
+    # NOTHING-specific parameters (rest condition has different baseline)
+    nothing_tmin_sec: float = 0.0
+    nothing_tmax_sec: float = 8.0
+    nothing_baseline_tmin_sec: float = 0.0
+    nothing_baseline_tmax_sec: float = 1.0
 
     def __post_init__(self) -> None:
         """Validate epoch parameters."""
@@ -138,6 +147,16 @@ class EpochConfig:
             raise ValueError(
                 f"Baseline tmin ({self.baseline_tmin_sec}) must be < tmax "
                 f"({self.baseline_tmax_sec})"
+            )
+        if self.nothing_tmin_sec >= self.nothing_tmax_sec:
+            raise ValueError(
+                f"NOTHING tmin ({self.nothing_tmin_sec}) must be < tmax "
+                f"({self.nothing_tmax_sec})"
+            )
+        if self.nothing_baseline_tmin_sec >= self.nothing_baseline_tmax_sec:
+            raise ValueError(
+                f"NOTHING baseline tmin ({self.nothing_baseline_tmin_sec}) must be < tmax "
+                f"({self.nothing_baseline_tmax_sec})"
             )
 
 

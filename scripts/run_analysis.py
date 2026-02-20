@@ -4200,8 +4200,10 @@ def run_eeg_analysis(
 
     logger.info(f"Using events for epoching: {event_id_filtered}")
 
-    # Step 1: Create epochs
-    logger.info("Creating EEG epochs...")
+    # Step 1: Create epochs with CONDITION-SPECIFIC BASELINES
+    # LEFT/RIGHT: baseline = (-1, 0) relative to marker (1s before stimulus)
+    # NOTHING: baseline = (0, 1) relative to marker (first second of rest)
+    logger.info("Creating EEG epochs with condition-specific baselines...")
     try:
         events, event_id_mapping = mne.events_from_annotations(
             processed_eeg, event_id=event_id_filtered
@@ -4212,22 +4214,122 @@ def run_eeg_analysis(
 
         logger.info(f"Found {len(events)} events for epoching")
 
-        # Create epochs with extended window for TFR edge effects
-        epochs = mne.Epochs(
-            processed_eeg,
-            events,
-            event_id=event_id_mapping,
-            tmin=config.epochs.eeg_tmin_sec,
-            tmax=config.epochs.eeg_tmax_sec,
-            baseline=(
-                config.epochs.baseline_tmin_sec,
-                config.epochs.baseline_tmax_sec,
-            ),
-            preload=True,
-            proj=False,
-            picks="eeg",
-            verbose=True,
-        )
+        # Separate event IDs for LEFT/RIGHT vs NOTHING
+        motor_event_ids = {}
+        nothing_event_ids = {}
+        
+        for event_name, event_code in event_id_mapping.items():
+            if "NOTHING" in event_name.upper():
+                nothing_event_ids[event_name] = event_code
+            else:
+                motor_event_ids[event_name] = event_code
+        
+        logger.info(f"Motor events (LEFT/RIGHT): {motor_event_ids}")
+        logger.info(f"Rest events (NOTHING): {nothing_event_ids}")
+        
+        epochs_list = []
+        
+        # Create LEFT/RIGHT epochs with pre-stimulus baseline
+        if motor_event_ids:
+            logger.info("Creating LEFT/RIGHT epochs: tmin=-1.0, tmax=7.0, baseline=(-1.0, 0.0)")
+            motor_events_mask = np.isin(events[:, 2], list(motor_event_ids.values()))
+            motor_events = events[motor_events_mask]
+            
+            if len(motor_events) > 0:
+                epochs_motor = mne.Epochs(
+                    processed_eeg,
+                    motor_events,
+                    event_id=motor_event_ids,
+                    tmin=config.epochs.eeg_tmin_sec,  # -1.0
+                    tmax=config.epochs.eeg_tmax_sec,  # 7.0
+                    baseline=(
+                        config.epochs.baseline_tmin_sec,  # -1.0
+                        config.epochs.baseline_tmax_sec,  # 0.0
+                    ),
+                    preload=True,
+                    proj=False,
+                    picks="eeg",
+                    verbose=True,
+                )
+                epochs_list.append(epochs_motor)
+                logger.info(f"Created {len(epochs_motor)} LEFT/RIGHT epochs")
+        
+        # Create NOTHING epochs with post-onset baseline (first second of rest)
+        if nothing_event_ids:
+            # Check if config has NOTHING-specific parameters
+            nothing_tmin = getattr(config.epochs, 'nothing_tmin_sec', 0.0)
+            nothing_tmax = getattr(config.epochs, 'nothing_tmax_sec', 8.0)
+            nothing_baseline_tmin = getattr(config.epochs, 'nothing_baseline_tmin_sec', 0.0)
+            nothing_baseline_tmax = getattr(config.epochs, 'nothing_baseline_tmax_sec', 1.0)
+            
+            logger.info(f"Creating NOTHING epochs: tmin={nothing_tmin}, tmax={nothing_tmax}, "
+                       f"baseline=({nothing_baseline_tmin}, {nothing_baseline_tmax})")
+            
+            nothing_events_mask = np.isin(events[:, 2], list(nothing_event_ids.values()))
+            nothing_events = events[nothing_events_mask]
+            
+            if len(nothing_events) > 0:
+                epochs_nothing = mne.Epochs(
+                    processed_eeg,
+                    nothing_events,
+                    event_id=nothing_event_ids,
+                    tmin=nothing_tmin,
+                    tmax=nothing_tmax,
+                    baseline=(nothing_baseline_tmin, nothing_baseline_tmax),
+                    preload=True,
+                    proj=False,
+                    picks="eeg",
+                    verbose=True,
+                )
+                epochs_list.append(epochs_nothing)
+                logger.info(f"Created {len(epochs_nothing)} NOTHING epochs")
+        
+        # Concatenate epochs if we have both types
+        if len(epochs_list) == 0:
+            raise ValueError("No epochs could be created")
+        elif len(epochs_list) == 1:
+            epochs = epochs_list[0]
+        else:
+            # Concatenate epochs - need to align time axes first
+            # Since LEFT/RIGHT has tmin=-1 and NOTHING has tmin=0, we need to crop
+            # to a common time window for concatenation
+            logger.info("Aligning epoch time windows for concatenation...")
+            
+            # Find common time range (intersection)
+            # LEFT/RIGHT: -1 to 7 (8s total, 1s baseline + 7s task)
+            # NOTHING: 0 to 8 (8s total)
+            # Common window: -1 to 6 (7s total, matching EEG epochs)
+            # For NOTHING, we shift by -1s to align baselines
+            common_tmin = -1.0
+            common_tmax = 6.0
+            
+            # Crop LEFT/RIGHT epochs to common window
+            epochs_motor_cropped = epochs_list[0].copy().crop(tmin=common_tmin, tmax=common_tmax)
+            
+            # For NOTHING epochs, crop 0 to 7s (equivalent duration)
+            # The baseline was already applied at 0-1s
+            epochs_nothing_cropped = epochs_list[1].copy().crop(tmin=0.0, tmax=7.0)
+            
+            # Shift NOTHING times to align with LEFT/RIGHT (-1 to 6)
+            # This makes t=0 in NOTHING align with t=0 in LEFT/RIGHT (stimulus onset)
+            epochs_nothing_cropped._raw_times = epochs_nothing_cropped.times - 1.0
+            epochs_nothing_cropped._times_readonly = epochs_nothing_cropped.times - 1.0
+            
+            # Reset baseline info after cropping (baseline already applied)
+            epochs_motor_cropped.baseline = None
+            epochs_nothing_cropped.baseline = None
+            
+            # Concatenate
+            epochs = mne.concatenate_epochs([epochs_motor_cropped, epochs_nothing_cropped])
+            logger.info(f"Concatenated epochs: {len(epochs)} total (aligned to {common_tmin}-{common_tmax}s)")
+            
+            # Also keep the original uncropped epochs for condition-specific analysis
+            # Store them in a dict for later use
+            epochs._metadata_uncropped = {
+                'motor': epochs_list[0],
+                'nothing': epochs_list[1],
+            }
+
 
         logger.info(
             f"Created {len(epochs)} epochs: "
@@ -4853,19 +4955,172 @@ def run_fnirs_analysis(
 
     logger.info(f"Using events for epoching: {event_id_filtered}")
 
-    # Step 1: Create fNIRS epochs
-    logger.info("Creating fNIRS epochs...")
+    # Step 1: Create fNIRS epochs with CONDITION-SPECIFIC BASELINES
+    # LEFT/RIGHT: baseline = (-1, 0) relative to marker (1s before stimulus)
+    # NOTHING: baseline = (0, 1) relative to marker (first second of rest)
+    logger.info("Creating fNIRS epochs with condition-specific baselines...")
     try:
-        epochs = create_fnirs_epochs(
-            processed_fnirs,
-            event_id=event_id_filtered,
-            tmin=config.epochs.fnirs_tmin_sec,
-            tmax=config.epochs.fnirs_tmax_sec,
-            baseline=(
-                config.epochs.baseline_tmin_sec,
-                config.epochs.baseline_tmax_sec,
-            ),
+        # Get all events first
+        events_all, event_id_all = mne.events_from_annotations(
+            processed_fnirs, event_id=event_id_filtered
         )
+
+        if len(events_all) == 0:
+            raise ValueError("No events found in annotations")
+
+        logger.info(f"Found {len(events_all)} events for fNIRS epoching")
+
+        # Separate event IDs for LEFT/RIGHT vs NOTHING
+        motor_event_ids = {}
+        nothing_event_ids = {}
+        
+        for event_name, event_code in event_id_all.items():
+            if "NOTHING" in event_name.upper():
+                nothing_event_ids[event_name] = event_code
+            else:
+                motor_event_ids[event_name] = event_code
+        
+        logger.info(f"Motor events (LEFT/RIGHT): {motor_event_ids}")
+        logger.info(f"Rest events (NOTHING): {nothing_event_ids}")
+        
+        # Pick fNIRS channels (HbO and HbR)
+        hbo_picks = mne.pick_types(processed_fnirs.info, fnirs="hbo")
+        hbr_picks = mne.pick_types(processed_fnirs.info, fnirs="hbr")
+        fnirs_picks = np.concatenate([hbo_picks, hbr_picks]) if len(hbo_picks) > 0 or len(hbr_picks) > 0 else None
+        
+        if fnirs_picks is None or len(fnirs_picks) == 0:
+            fnirs_picks = mne.pick_types(processed_fnirs.info, fnirs=True)
+            if len(fnirs_picks) == 0:
+                raise ValueError("No fNIRS channels found")
+        
+        epochs_list = []
+        
+        # Create LEFT/RIGHT epochs with pre-stimulus baseline
+        if motor_event_ids:
+            logger.info(f"Creating LEFT/RIGHT fNIRS epochs: tmin={config.epochs.fnirs_tmin_sec}, "
+                       f"tmax={config.epochs.fnirs_tmax_sec}, "
+                       f"baseline=({config.epochs.baseline_tmin_sec}, {config.epochs.baseline_tmax_sec})")
+            
+            # Filter events to only motor events
+            motor_events_mask = np.isin(events_all[:, 2], list(motor_event_ids.values()))
+            motor_events = events_all[motor_events_mask]
+            
+            if len(motor_events) > 0:
+                epochs_motor = mne.Epochs(
+                    processed_fnirs,
+                    motor_events,
+                    event_id=motor_event_ids,
+                    tmin=config.epochs.fnirs_tmin_sec,  # -1.0
+                    tmax=config.epochs.fnirs_tmax_sec,  # 7.0
+                    baseline=(
+                        config.epochs.baseline_tmin_sec,  # -1.0
+                        config.epochs.baseline_tmax_sec,  # 0.0
+                    ),
+                    picks=fnirs_picks,
+                    preload=True,
+                    proj=False,
+                    reject_by_annotation=True,
+                    verbose=True,
+                )
+                epochs_list.append(epochs_motor)
+                logger.info(f"Created {len(epochs_motor)} LEFT/RIGHT fNIRS epochs")
+        
+        # Create NOTHING epochs with post-onset baseline (first second of rest)
+        if nothing_event_ids:
+            # Check if config has NOTHING-specific parameters
+            nothing_tmin = getattr(config.epochs, 'nothing_tmin_sec', 0.0)
+            nothing_tmax = getattr(config.epochs, 'nothing_tmax_sec', 8.0)
+            nothing_baseline_tmin = getattr(config.epochs, 'nothing_baseline_tmin_sec', 0.0)
+            nothing_baseline_tmax = getattr(config.epochs, 'nothing_baseline_tmax_sec', 1.0)
+            
+            logger.info(f"Creating NOTHING fNIRS epochs: tmin={nothing_tmin}, tmax={nothing_tmax}, "
+                       f"baseline=({nothing_baseline_tmin}, {nothing_baseline_tmax})")
+            
+            # Filter events to only NOTHING events
+            nothing_events_mask = np.isin(events_all[:, 2], list(nothing_event_ids.values()))
+            nothing_events = events_all[nothing_events_mask]
+            
+            if len(nothing_events) > 0:
+                epochs_nothing = mne.Epochs(
+                    processed_fnirs,
+                    nothing_events,
+                    event_id=nothing_event_ids,
+                    tmin=nothing_tmin,
+                    tmax=nothing_tmax,
+                    baseline=(nothing_baseline_tmin, nothing_baseline_tmax),
+                    picks=fnirs_picks,
+                    preload=True,
+                    proj=False,
+                    reject_by_annotation=True,
+                    verbose=True,
+                )
+                epochs_list.append(epochs_nothing)
+                logger.info(f"Created {len(epochs_nothing)} NOTHING fNIRS epochs")
+        
+        # Concatenate epochs if we have both types
+        if len(epochs_list) == 0:
+            raise ValueError("No fNIRS epochs could be created")
+        elif len(epochs_list) == 1:
+            epochs = epochs_list[0]
+        else:
+            # Concatenate epochs - need to align time axes first
+            logger.info("Aligning fNIRS epoch time windows for concatenation...")
+            
+            # Both epoch types have 8s duration but different time references:
+            # LEFT/RIGHT: -1 to 7s (baseline at -1 to 0)
+            # NOTHING: 0 to 8s (baseline at 0 to 1)
+            # 
+            # Strategy: Crop both to same DURATION (7s) and use motor times as reference
+            # Motor: crop to -1 to 6s (7s)
+            # Nothing: crop to 0 to 7s (7s), then shift times by -1s
+            
+            epochs_motor = epochs_list[0]
+            epochs_nothing = epochs_list[1]
+            
+            # Crop motor epochs to -1 to 6s
+            epochs_motor_cropped = epochs_motor.copy().crop(tmin=-1.0, tmax=6.0)
+            
+            # Crop nothing epochs to 0 to 7s (same duration: 7s)
+            epochs_nothing_cropped = epochs_nothing.copy().crop(tmin=0.0, tmax=7.0)
+            
+            # Use MNE's shift_time to align NOTHING epochs to motor time reference
+            # shift_time shifts the time axis: new_times = old_times + tshift
+            # We want 0s in NOTHING to become -1s (to align with motor baseline end)
+            # But actually we want the data to align, so NOTHING[0s] should be at t=-1s
+            # This means tshift = -1.0
+            epochs_nothing_shifted = epochs_nothing_cropped.copy()
+            epochs_nothing_shifted.shift_time(tshift=-1.0, relative=True)
+            
+            # Verify times match
+            motor_times = epochs_motor_cropped.times
+            nothing_times = epochs_nothing_shifted.times
+            
+            if not np.allclose(motor_times, nothing_times, atol=1e-6):
+                logger.warning(
+                    f"Time mismatch after alignment: "
+                    f"motor={motor_times[0]:.3f}-{motor_times[-1]:.3f}, "
+                    f"nothing={nothing_times[0]:.3f}-{nothing_times[-1]:.3f}"
+                )
+                # Force alignment by using motor times
+                # This is safe because both have same number of samples
+                if len(motor_times) == len(nothing_times):
+                    epochs_nothing_shifted._raw_times = motor_times.copy()
+                    epochs_nothing_shifted._times_readonly = motor_times.copy()
+                    logger.info("Forced time alignment using motor epoch times")
+            
+            # Reset baseline info after cropping (baseline already applied)
+            epochs_motor_cropped.baseline = None
+            epochs_nothing_shifted.baseline = None
+            
+            # Concatenate
+            epochs = mne.concatenate_epochs([epochs_motor_cropped, epochs_nothing_shifted])
+            logger.info(f"Concatenated fNIRS epochs: {len(epochs)} total (aligned to -1.0 to 6.0s)")
+            
+            # Store original uncropped epochs for condition-specific analysis
+            epochs._metadata_uncropped = {
+                'motor': epochs_list[0],
+                'nothing': epochs_list[1],
+            }
 
         logger.info(
             f"Created {len(epochs)} fNIRS epochs: "

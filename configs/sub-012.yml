@@ -54,18 +54,28 @@ quality:
   short_channel_distance_mm: 15.0
 
 # Epoch configuration
+# NOTE: LEFT/RIGHT and NOTHING have DIFFERENT baseline requirements!
+# - LEFT/RIGHT: baseline = (-1.0, 0.0), epoch = (-1.0, 7.0)
+# - NOTHING: baseline = (0.0, 1.0), epoch = (0.0, 8.0)
+# The code handles this by creating separate epoch objects.
 epochs:
-  # EEG: -1s baseline, 10s task, 8s rest window (total 18s from onset)
-  eeg_tmin_sec: 0.0   # Start from onset (not pre-task)
-  eeg_tmax_sec: 7.0   # 7-second epochs
+  # LEFT/RIGHT epochs: -1s baseline + 7s task = 8s total
+  eeg_tmin_sec: -1.0   # Include 1s pre-stimulus baseline
+  eeg_tmax_sec: 7.0    # 7-second task window
 
-  # fNIRS (not used, but keeping defaults)
-  fnirs_tmin_sec: 0.0
-  fnirs_tmax_sec: 7.0  # Match EEG: 7s epochs
+  # fNIRS epochs (same as EEG for LEFT/RIGHT)
+  fnirs_tmin_sec: -1.0
+  fnirs_tmax_sec: 7.0
 
-  # Baseline correction window: 1 second before trial onset
-  baseline_tmin_sec: 0.0  # First second of REST (from NOTHING epochs)
-  baseline_tmax_sec: 1.0
+  # Baseline for LEFT/RIGHT: 1 second BEFORE marker
+  baseline_tmin_sec: -1.0
+  baseline_tmax_sec: 0.0
+  
+  # NOTHING-specific parameters (used by custom epoch creation)
+  nothing_tmin_sec: 0.0    # Start at NOTHING marker (rest onset)
+  nothing_tmax_sec: 8.0    # 8 seconds total (1s baseline + 7s task)
+  nothing_baseline_tmin_sec: 0.0   # First second of rest = baseline
+  nothing_baseline_tmax_sec: 1.0
 
 # Analysis configuration
 analysis:

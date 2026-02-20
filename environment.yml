@@ -35,6 +35,9 @@ dependencies:
   - nilearn=0.10.3
   - scikit-learn=1.4.0
 
+  # Interactive visualization
+  - plotly=5.18.0
+
   # Pip-only packages
   - pip
   - pip:
